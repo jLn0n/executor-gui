@@ -1,3 +1,4 @@
+if not repoImport then return error("not using loader.lua") end
 -- services
 local inputService = game:GetService("UserInputService")
 local logService = game:GetService("LogService")
