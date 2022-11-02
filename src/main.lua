@@ -76,7 +76,7 @@ local sidebarBtnDebounce = true
 local totalConsoleOutputs = 0
 
 local textboxTabs = table.create(0)
-local lastHighlightUpdate = table.create(0)	
+local lastHighlightUpdate = table.create(0)
 local colorFormatters = table.create(8)
 local tokenColors = {
 	["background"] = Color3.fromRGB(21, 20, 23),
@@ -135,7 +135,7 @@ local function toggleUI(hideBool: boolean)
 	)
 
 	Topbar.Visible, Container.Visible = false, false
-	if not hideBool then
+	if hideBool then
 		MainUI.Visible = true
 		MainUI.Size, MainUI.BorderSizePixel = UDim2.new(), 0
 
@@ -159,7 +159,7 @@ local function setSdBtnRot(rotation: number)
 	local tweenObj = tweenService:Create(SidebarToggleBtn, tweenInfo, {
 		Rotation = rotation
 	})
-	
+
 	return tweenObj
 end
 
@@ -173,7 +173,7 @@ local function setSidebarVisible(visible: boolean)
 		TweenInfo.new(.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
 		{Size = (if visible then UDim2.fromOffset(425, 320) else UDim2.fromOffset(0, 320))}
 	)
-	
+
 	SdFadeEffect.Visible = visible
 	return sidebarTween, fadeTween
 end
@@ -181,7 +181,7 @@ end
 local function setContainerUI(uiName)
 	local sidebarTween, fadeTween = setSidebarVisible(false)
 	local sidebarBtnTween = setSdBtnRot(0)
-	
+
 	sidebarOpen = false
 	sidebarBtnTween:Play()
 	sidebarTween:Play()
@@ -215,7 +215,7 @@ local function getLinesRender(text: string)
 	local result = ""
 	local _, lines = string.gsub(text, "\n", "")
 	lines += 1
-	
+
 	for line = 1, lines do
 		result ..= tostring(line) .. "\n"
 	end
@@ -224,7 +224,7 @@ end
 
 local function sanitizeText(text: string, ...)
 	local args = {...}
-	
+
 	for _, arg in args do
 		if arg == "richtext" then
 			text = string.gsub(string.gsub(string.gsub(string.gsub(string.gsub(text, "&", "&amp;"), "<", "&lt;"), ">", "&gt;"), '"', "&quot;"), "'", "&apos;")
@@ -234,14 +234,14 @@ local function sanitizeText(text: string, ...)
 			text = string.gsub(text, "[\0\1\2\3\4\5\6\7\8\11\12\13\14\15\16\17\18\19\20\21\22\23\24\25\26\27\28\29\30\31]+", "")
 		end
 	end
-	
+
 	return text
 end
 
 local function IDESyntaxHighlight(inputBox: TextBox, params: {any}) -- https://github.com/boatbomber/Highlighter/blob/main/src/init.lua
 	params = params or table.create(0)
 	local source = sanitizeText(params.textSrc or inputBox.Text, "control", "tabs")
-	
+
 	local data = lastHighlightUpdate[inputBox]
 	if data == nil then
 		data = {
@@ -252,9 +252,9 @@ local function IDESyntaxHighlight(inputBox: TextBox, params: {any}) -- https://g
 	elseif (not params.forceUpdate and data.textSrc == inputBox.Text) then
 		return
 	end
-	
+
 	data.textSrc = source
-	
+
 	local lineFolder = inputBox:FindFirstChild("RenderContainer")
 	if not lineFolder then
 		local newLineFolder = Instance.new("Folder")
@@ -266,7 +266,7 @@ local function IDESyntaxHighlight(inputBox: TextBox, params: {any}) -- https://g
 
 	local _, numLines = string.gsub(source, "\n", "")
 	numLines += 1
-	
+
 	local textBounds = inputBox.TextBounds
 	while (textBounds.Y ~= textBounds.Y) or (textBounds.Y < 1) do
 		task.wait()
@@ -274,7 +274,7 @@ local function IDESyntaxHighlight(inputBox: TextBox, params: {any}) -- https://g
 	end
 
 	local textHeight = textBounds.Y / numLines * inputBox.LineHeight
-	
+
 	local lineLabels = data.highlightRenders
 	for iter = 1, math.max(numLines, #lineLabels) do
 		local label: TextLabel? = lineLabels[iter]
@@ -302,11 +302,11 @@ local function IDESyntaxHighlight(inputBox: TextBox, params: {any}) -- https://g
 		label.Size = UDim2.new(1, 0, 0, math.ceil(textHeight))
 		label.Position = UDim2.fromScale(0, textHeight * (iter - 1) / inputBox.AbsoluteSize.Y)
 	end
-	
+
 	local richText, index, lineNumber = table.create(0), 0, 1
 	for token, content in lexer.scan(source) do
 		local tokenColor = tokenColors[token] or tokenColors.iden
-		
+
 		local lines = string.split(sanitizeText(content, "richtext"), "\n")
 		for l, line in lines do
 			if l > 1 then
@@ -327,7 +327,7 @@ local function IDESyntaxHighlight(inputBox: TextBox, params: {any}) -- https://g
 			end
 		end
 	end
-	
+
 	lineLabels[lineNumber].Text = table.concat(richText)
 end
 
@@ -355,15 +355,15 @@ end
 
 local function updateIDE()
 	task.defer(IDESyntaxHighlight, TextboxInput) -- render the highlight after 1 frame
-	TextboxInput.Text = sanitizeText(TextboxInput.Text, "tabs") -- sanitize cringe \t
-	
+	TextboxInput.Text = sanitizeText(TextboxInput.Text, "tabs") -- sanitize cringe \t (but it doesn't really sanitize it :sad:)
+
 	local linesRender = getLinesRender(TextboxInput.Text)
 	TLRender.Text = linesRender
-	
+
 	local TextboxSize, linesSize = getTextSize(TextboxInput), getTextSize(TLRender)
 	TextLines.Size = UDim2.new(0, (linesSize.X + 10), 1, 0)
 	TextLines.CanvasSize = UDim2.new(0, 0, 0, (linesSize.Y + 7))
-	
+
 	TextboxScroller.Position = UDim2.new(0, TextLines.Size.X.Offset, 0, 0)
 	TextboxScroller.Size = UDim2.new(0, (425 - TextLines.Size.X.Offset), 1, 0)
 	TextboxScroller.CanvasSize = UDim2.new(0, (TextboxSize.X + 7), 0, (TextboxSize.Y + 7))
@@ -381,11 +381,11 @@ end
 
 local function selectTab(tabName: string)
 	if tabName == currentTab then return end -- no recursive thing
-	
+
 	local selectedtabObj = textboxTabs[tabName]
 	local currentTabObj = textboxTabs[currentTab]
 	if not selectedtabObj then return end
-	
+
 	currentTab = tabName
 	if currentTabObj then currentTabObj.BorderColor3 = selectedtabObj.BorderColor3 end
 	selectedtabObj.BorderColor3 = Color3.fromRGB(61, 64, 62)
@@ -396,11 +396,11 @@ local function createTab(tabName: string, source: string?, removeCloseBtn: boole
 	local newTab = Templates.TabTemplate:Clone()
 	local TabLabel = newTab.Label
 	local TabCloseBtn = newTab.Close
-	
+
 	newTab.Name, TabLabel.Text = tabName, tabName
 	local textSize = getTextSize(TabLabel)
 	local textSizeX = (textSize.X + 10) + (if not removeCloseBtn then 20 else 0)
-	
+
 	newTab.Size = UDim2.new(0, textSizeX, 0, 30)
 	if removeCloseBtn then
 		TabLabel.Size = UDim2.fromScale(1, 1)
@@ -408,18 +408,18 @@ local function createTab(tabName: string, source: string?, removeCloseBtn: boole
 		TabCloseBtn:Destroy()
 	else
 		TabLabel.Size = UDim2.new(0, textSizeX - 20, 1, 0)
-		
+
 		TabCloseBtn.MouseButton1Click:Connect(function()
 			selectTab(defaultTab)
 			newTab:Destroy()
 			textboxTabs[tabName] = nil
 		end)
 	end
-	
+
 	TabLabel.MouseButton1Click:Connect(function()
 		selectTab(tabName)
 	end)
-	
+
 	textboxTabs[tabName] = newTab
 	newTab.Data.Value = (source or newTab.Data.Value)
 	newTab.Parent = TabScroller
@@ -430,7 +430,7 @@ end
 local function updateTabData()
 	local tabObj = textboxTabs[currentTab]
 	if not tabObj then return end
-	
+
 	tabObj.Data.Value = TextboxInput.Text
 end
 
@@ -439,13 +439,13 @@ local function refreshScriptList()
 		if ScriptScroller:FindFirstChild(scriptName) then continue end
 		local newScript = Templates.ScriptTemplate:Clone()
 		local ScriptLabel = newScript.Label
-		
+
 		newScript.Name, ScriptLabel.Text = scriptName, scriptName
 		newScript.MouseButton1Click:Connect(function()
 			if textboxTabs[scriptName] then return end
 			createTab(scriptName, scriptSource)
 		end)
-		
+
 		newScript.Parent = ScriptScroller
 	end
 
@@ -459,7 +459,7 @@ local function searchScriptListFromName(scriptName)
 		if not scriptBtn:IsA("TextButton") then continue end
 		scriptBtn.Visible = (string.sub(string.lower(scriptBtn.Name), 0, string.len(scriptName)) == scriptName)
 	end
-	
+
 	ScriptScroller.CanvasSize = UDim2.fromOffset(0, SSListLayout.AbsoluteContentSize.Y)
 end
 
@@ -479,17 +479,17 @@ end
 local function createConsoleOutput(outputColor, ...)
 	outputColor = outputColor or consoleColorTypes[Enum.MessageType.MessageOutput]
 	local message = table.concat({...}, " ")
-	
+
 	totalConsoleOutputs += 1
 	local outputMsg = Templates.OutputTemplate:Clone()
 	outputMsg.Name = totalConsoleOutputs
 	outputMsg.Text = message
 	outputMsg.Parent = ConsoleScroller
 	outputMsg.TextColor3 = consoleColorTypes[outputColor] or outputColor
-	
+
 	local textSize = getTextSize(outputMsg)
 	outputMsg.Size = UDim2.fromOffset(textSize.X, textSize.Y)
-	
+
 	ConsoleScroller.CanvasSize = UDim2.fromOffset(CSListLayout.AbsoluteContentSize.X + 5, CSListLayout.AbsoluteContentSize.Y + 5)
 end
 -- main
@@ -499,26 +499,19 @@ draggify(MainUI, Topbar)
 
 -- (Topbar)
 CloseBtn.MouseButton1Click:Connect(function()
-	toggleUI(true):Wait()
+	toggleUI(false):Wait()
 	GUI:Destroy()
 end)
 
 HideBtn.MouseButton1Click:Connect(function()
-	toggleUI(true)
+	toggleUI(false)
 end)
 
 SidebarToggleBtn.MouseButton1Click:Connect(function()
 	if not sidebarBtnDebounce then return end
-	local sidebarTween, fadeTween, sidebarBtnTween
+	local sidebarTween, fadeTween = setSidebarVisible(not sidebarOpen)
+	local sidebarBtnTween = setSdBtnRot(if sidebarOpen then 0 else 90)
 
-	if sidebarOpen then
-		sidebarTween, fadeTween = setSidebarVisible(false)
-		sidebarBtnTween = setSdBtnRot(0)
-	else
-		sidebarTween, fadeTween = setSidebarVisible(true)
-		sidebarBtnTween = setSdBtnRot(90)
-	end
-	
 	sidebarBtnDebounce = false
 	sidebarTween:Play()
 	sidebarBtnTween:Play()
@@ -529,7 +522,7 @@ SidebarToggleBtn.MouseButton1Click:Connect(function()
 		sidebarTween:Destroy()
 		sidebarBtnTween:Destroy()
 		fadeTween:Destroy()
-		
+
 		task.wait(.05)
 		sidebarBtnDebounce = true
 	end)
@@ -545,7 +538,7 @@ end
 -- (Executor - Container)
 -- (Buttons)
 ExecuteBtn.MouseButton1Click:Connect(function()
-	
+	loadstring(TextboxInput.Text)()
 end)
 
 ClearBtn.MouseButton1Click:Connect(function()
@@ -590,10 +583,9 @@ end)
 ClearConsoleBtn.MouseButton1Click:Connect(function()
 	for _, outputMsg in ConsoleScroller:GetChildren() do
 		if not outputMsg:IsA("TextLabel") then continue end
-		
 		outputMsg:Destroy()
 	end
-	
+
 	totalConsoleOutputs = 0
 end)
 
@@ -601,19 +593,19 @@ end)
 Topbar.Visible, Container.Visible = false, false
 MainUI.Size, MainUI.BorderSizePixel = UDim2.new(), 0
 
-inputService.InputBegan:Connect(function(input, gameProcessed)
+inputService.InputBegan:Connect(function(input)
 	if input.KeyCode == Enum.KeyCode.Equals and not inputService:GetFocusedTextBox() then
 		if not uiToggleDebounce then return end
-		
-		local toggleTween = toggleUI(MainUI.Visible)
+
+		local toggleTween = toggleUI(not MainUI.Visible)
 		uiToggleDebounce = false
-		
+
 		toggleTween.Completed:Connect(function()
 			sidebarOpen = false
 			Sidebar.Position = UDim2.fromOffset(-150, 0)
 			SdFadeEffect.Visible, SdFadeEffect.Size = false, UDim2.fromOffset(0, 320)
 			SidebarToggleBtn.Rotation = 0
-			
+
 			task.wait(.25)
 			uiToggleDebounce = true
 			toggleTween:Destroy()
@@ -626,5 +618,5 @@ task.defer(function()
 
 	createTab(defaultTab, [[print("jLn0n's executor on top!")]], true)
 	refreshScriptList()
-	toggleUI(false)
+	toggleUI(true)
 end)
