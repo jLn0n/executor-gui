@@ -136,7 +136,7 @@ local function toggleUI(hideBool: boolean)
 	)
 
 	Topbar.Visible, Container.Visible = false, false
-	if hideBool then
+	if not hideBool then
 		MainUI.Visible = true
 		MainUI.Size, MainUI.BorderSizePixel = UDim2.new(), 0
 
