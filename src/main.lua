@@ -63,6 +63,7 @@ local SdButtons = Sidebar.Buttons
 local SdFadeEffect = Sidebar.FadeEffect
 
 -- variables
+local executorLoaded = false
 local uiToggleDebounce = true
 
 local textIDEHidden = true
@@ -595,7 +596,7 @@ MainUI.Size, MainUI.BorderSizePixel = UDim2.new(), 0
 
 inputService.InputBegan:Connect(function(input)
 	if input.KeyCode == Enum.KeyCode.Equals and not inputService:GetFocusedTextBox() then
-		if not uiToggleDebounce then return end
+		if (not uiToggleDebounce and not executorLoaded) then return end
 
 		local toggleTween = toggleUI(not MainUI.Visible)
 		uiToggleDebounce = false
@@ -614,9 +615,8 @@ inputService.InputBegan:Connect(function(input)
 end)
 
 task.defer(function()
-	repeat task.wait() until game:IsLoaded()
-
 	createTab(defaultTab, [[print("jLn0n's executor on top!")]], true)
 	refreshScriptList()
-	toggleUI(true)
+	toggleUI(true):Wait()
+	executorLoaded = true
 end)
