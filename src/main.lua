@@ -500,7 +500,7 @@ draggify(MainUI, Topbar)
 
 -- (Topbar)
 CloseBtn.MouseButton1Click:Connect(function()
-	toggleUI(false):Wait()
+	toggleUI(false).Completed:Wait()
 	GUI:Destroy()
 end)
 
@@ -617,6 +617,6 @@ end)
 task.defer(function()
 	createTab(defaultTab, [[print("jLn0n's executor on top!")]], true)
 	refreshScriptList()
-	toggleUI(true):Wait()
+	toggleUI(true).Completed:Wait()
 	executorLoaded = true
 end)
