@@ -6,7 +6,6 @@ local textService = game:GetService("TextService")
 local tweenService = game:GetService("TweenService")
 -- imports
 local lexer = repoImport("src/utils/lexer.lua")()
-local scriptsList = {}
 -- objects
 -- ui objects
 local GUI = repoImport("src/utils/ui.lua")()
@@ -76,6 +75,7 @@ local sidebarBtnDebounce = true
 
 local totalConsoleOutputs = 0
 
+local scriptsList = table.create(0)
 local textboxTabs = table.create(0)
 local lastHighlightUpdate = table.create(0)
 local colorFormatters = table.create(8)
@@ -495,7 +495,7 @@ local function createConsoleOutput(outputColor, ...)
 end
 -- main
 -- (pre-init)
-GUI.Parent = game:GetService("Players").LocalPlayer.PlayerGui
+GUI.Parent = (gethui and gethui() or game:GetService("CoreGui").RobloxGui)
 draggify(MainUI, Topbar)
 
 -- (Topbar)
@@ -615,7 +615,26 @@ inputService.InputBegan:Connect(function(input)
 	end
 end)
 
+game.Close:Connect(function()
+	for fileName, fileData in scriptsList do
+		writefile("executor-gui/" .. fileName, fileData)
+	end
+end)
+
 task.defer(function()
+	do -- wip
+		if isfolder("executor-gui") then
+			makefolder("executor-gui")
+		end
+
+		for _, filePath in listfiles("executor-gui") do
+			if isfolder(filePath) then continue end
+			local fileData = readfile(filePath)
+
+			scriptsList[filePath] = fileData
+		end
+	end
+
 	createTab(defaultTab, [[print("jLn0n's executor on top!")]], true)
 	refreshScriptList()
 	toggleUI(true).Completed:Wait()
