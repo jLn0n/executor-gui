@@ -128,15 +128,15 @@ local function draggify(frame: Frame, button: Frame?)
 	end)
 end
 
-local function toggleUI(hideBool: boolean)
+local function toggleUI(toggleBool: boolean)
 	local tweenObj = tweenService:Create(
 		MainUI,
 		TweenInfo.new(1, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
-		{Size = (hideBool and UDim2.new() or UDim2.new(0, 575, 0, 350)), BorderSizePixel = (hideBool and 0 or 1)}
+		{Size = (toggleBool and UDim2.new(0, 575, 0, 350) or UDim2.new()), BorderSizePixel = (toggleBool and 1 or 0)}
 	)
 
 	Topbar.Visible, Container.Visible = false, false
-	if not hideBool then
+	if toggleBool then
 		MainUI.Visible = true
 		MainUI.Size, MainUI.BorderSizePixel = UDim2.new(), 0
 
@@ -573,6 +573,7 @@ SSearchInput.FocusLost:Connect(function(pressedEnter)
 	if not pressedEnter then return end
 	searchScriptListFromName(SSearchInput.Text)
 end)
+
 ScriptScroller:GetPropertyChangedSignal("CanvasSize"):Connect(onScriptScrollerCanvasResize)
 
 -- (Console - Container)
