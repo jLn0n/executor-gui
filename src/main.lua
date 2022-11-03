@@ -628,7 +628,7 @@ task.defer(function()
 		end
 
 		for _, filePath in listfiles("./executor-gui") do
-			if isfolder(filePath) then continue end
+			if (isfolder(filePath) or scriptsList[filePath]) then continue end
 			local fileData = readfile(filePath)
 
 			scriptsList[filePath] = fileData
