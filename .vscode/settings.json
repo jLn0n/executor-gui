@@ -1,6 +1,7 @@
 {
     "robloxLsp.diagnostics.globals": [
         "repoImport",
-        "getgenv"
+        "getgenv",
+        "gethui"
     ]
 }

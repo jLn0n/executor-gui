@@ -627,7 +627,7 @@ task.defer(function()
 			makefolder("executor-gui")
 		end
 
-		for _, filePath in listfiles("executor-gui") do
+		for _, filePath in listfiles("./executor-gui") do
 			if isfolder(filePath) then continue end
 			local fileData = readfile(filePath)
 
