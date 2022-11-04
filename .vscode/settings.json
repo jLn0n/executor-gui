@@ -1,7 +1,12 @@
 {
     "robloxLsp.diagnostics.globals": [
-        "repoImport",
         "getgenv",
-        "gethui"
+        "gethui",
+        "import",
+        "isfile",
+        "readfile",
+        "writefile",
+        "makefolder",
+        "isfolder"
     ]
 }

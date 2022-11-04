@@ -1,15 +1,15 @@
-if not repoImport then return error("not using loader.lua") end
+if not import then return error("not using loader.lua") end
 -- services
 local inputService = game:GetService("UserInputService")
 local logService = game:GetService("LogService")
 local textService = game:GetService("TextService")
 local tweenService = game:GetService("TweenService")
 -- imports
-local lexer = repoImport("src/utils/lexer.lua")()
+local lexer = import("src/utils/lexer.lua")()
 -- objects
 -- ui objects
-local GUI = repoImport("src/utils/ui.lua")()
-local Templates = repoImport("src/utils/templates.lua")()
+local GUI = import("src/utils/ui.lua")()
+local Templates = import("src/utils/templates.lua")()
 
 local MainUI = GUI.MainUI
 
@@ -62,6 +62,8 @@ local SdButtons = Sidebar.Buttons
 local SdFadeEffect = Sidebar.FadeEffect
 
 -- variables
+local scriptListPath = "executor-gui/script-list"
+
 local executorLoaded = false
 local uiToggleDebounce = true
 
@@ -539,7 +541,7 @@ end
 -- (Executor - Container)
 -- (Buttons)
 ExecuteBtn.MouseButton1Click:Connect(function()
-	loadstring(TextboxInput.Text)()
+	loadstring(TextboxInput.Text, "=" .. "Executor - " .. currentTab)()
 end)
 
 ClearBtn.MouseButton1Click:Connect(function()
@@ -617,17 +619,17 @@ end)
 
 game.Close:Connect(function()
 	for fileName, fileData in scriptsList do
-		writefile("executor-gui/" .. fileName, fileData)
+		writefile(scriptListPath .. fileName, fileData)
 	end
 end)
 
 task.defer(function()
-	do -- wip
-		if isfolder("executor-gui") then
-			makefolder("executor-gui")
+	do -- script-list loader
+		if isfolder(scriptListPath) then
+			makefolder(scriptListPath)
 		end
 
-		for _, filePath in listfiles("./executor-gui") do
+		for _, filePath in listfiles(scriptListPath) do
 			if (isfolder(filePath) or scriptsList[filePath]) then continue end
 			local fileData = readfile(filePath)
 
