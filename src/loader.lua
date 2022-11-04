@@ -2,25 +2,7 @@
 local http_request = (syn and syn.request) or (http and http.request) or request or http_request
 
 -- functions
-local function wrapFuncGlobal(func, customFenv)
-	local fenv, fenvCache = {}, getfenv(0)
-	local fenvMT = {}
-	function fenvMT:__index(index)
-		return customFenv[index] or fenvCache[index]
-	end
-	function fenvMT:__newindex(index, value)
-		if fenvCache[index] then
-			fenvCache[index] = value
-		else
-			customFenv[index] = value
-		end
-	end
-	setmetatable(fenv, fenvMT)
-	setfenv(func, fenv)
-	return func
-end
-
-function import(path, branch)
+getgenv().import = function(path, branch) -- TODO: make this only exist on executor-gui envs
 	branch = (branch or "main")
 	local result, cloudSrc
 
@@ -58,7 +40,7 @@ function import(path, branch)
 	else
 		return error(string.format("Cannot get '%s' with branch '%s' from the repository.", path, branch))
 	end
-	return wrapFuncGlobal(loadstring(cloudSrc, "=" .. "executor-gui" .. path), {import = import})
+	return loadstring(cloudSrc, "=" .. "executor-gui" .. path)
 end
 
 -- main

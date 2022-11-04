@@ -98,6 +98,24 @@ local consoleColorTypes = {
 	[Enum.MessageType.MessageError] = Color3.fromRGB(215, 5, 10)
 }
 -- functions
+local function wrapFuncGlobal(func, customFenv)
+	local fenv, fenvCache = {}, getfenv(0)
+	local fenvMT = {}
+	function fenvMT:__index(index)
+		return customFenv[index] or fenvCache[index]
+	end
+	function fenvMT:__newindex(index, value)
+		if fenvCache[index] then
+			fenvCache[index] = value
+		else
+			customFenv[index] = value
+		end
+	end
+	setmetatable(fenv, fenvMT)
+	setfenv(func, fenv)
+	return func
+end
+
 local function draggify(frame: Frame, button: Frame?)
 	local dragToggle = false
 	local dragInput, dragStart, startPos
@@ -541,7 +559,7 @@ end
 -- (Executor - Container)
 -- (Buttons)
 ExecuteBtn.MouseButton1Click:Connect(function()
-	loadstring(TextboxInput.Text, "=" .. "Executor - " .. currentTab)()
+	wrapFuncGlobal(loadstring(TextboxInput.Text, string.format("=Executor - %s", currentTab)))()
 end)
 
 ClearBtn.MouseButton1Click:Connect(function()
