@@ -643,7 +643,7 @@ end)
 
 task.defer(function()
 	do -- script-list loader
-		if isfolder(scriptListPath) then
+		if not isfolder(scriptListPath) then
 			makefolder(scriptListPath)
 		end
 
