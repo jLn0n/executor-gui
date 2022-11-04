@@ -62,6 +62,8 @@ local SdButtons = Sidebar.Buttons
 local SdFadeEffect = Sidebar.FadeEffect
 
 -- variables
+local stringList = "QWERTYUIOPASDFGHJKLZXCVBNM1234567890!@#$%^&*()"
+
 local scriptListPath = "executor-gui/script-list"
 
 local executorLoaded = false
@@ -98,7 +100,7 @@ local consoleColorTypes = {
 	[Enum.MessageType.MessageError] = Color3.fromRGB(215, 5, 10)
 }
 -- functions
-local function wrapFuncGlobal(func, customFenv)
+local function wrapFuncGlobal(func, customFenv) -- for execution sandbox
 	local fenv, fenvCache = {}, getfenv(0)
 	local fenvMT = {}
 	function fenvMT:__index(index)
@@ -114,6 +116,17 @@ local function wrapFuncGlobal(func, customFenv)
 	setmetatable(fenv, fenvMT)
 	setfenv(func, fenv)
 	return func
+end
+
+local function generateRandomString(lenght, seed)
+	local random = Random.new(seed or math.random(10000, 10000000))
+	local result = ""
+
+	for _ = 1, lenght do
+		local randNumber = random:NextInteger(1, #stringList)
+		result ..= string.sub(stringList, randNumber, randNumber)
+	end
+	return result
 end
 
 local function draggify(frame: Frame, button: Frame?)
@@ -156,6 +169,7 @@ local function toggleUI(toggleBool: boolean)
 	)
 
 	Topbar.Visible, Container.Visible = false, false
+	MainUI.Position = UDim2.fromScale(.5, .5)
 	if toggleBool then
 		MainUI.Visible = true
 		MainUI.Size, MainUI.BorderSizePixel = UDim2.new(), 0
@@ -444,7 +458,6 @@ local function createTab(tabName: string, source: string?, removeCloseBtn: boole
 	textboxTabs[tabName] = newTab
 	newTab.Data.Value = (source or newTab.Data.Value)
 	newTab.Parent = TabScroller
-	TabScroller.CanvasSize = UDim2.fromOffset(TSListLayout.AbsoluteContentSize.X, 0)
 	selectTab(tabName)
 end
 
@@ -455,7 +468,22 @@ local function updateTabData()
 	tabObj.Data.Value = TextboxInput.Text
 end
 
-local function refreshScriptList()
+local function updateTabCanvasSize()
+	TabScroller.CanvasSize = UDim2.fromOffset(TSListLayout.AbsoluteContentSize.X, 0)
+end
+
+local function refreshScriptList(dontReloadScriptsFolder: boolean)
+	if not dontReloadScriptsFolder then
+		for _, filePath in listfiles(scriptListPath) do
+			if (isfolder(filePath) or scriptsList[filePath]) then continue end
+			local fileData = readfile(filePath)
+			local fileName = string.split(filePath, "\\")
+			fileName = fileName[#fileName]
+
+			scriptsList[fileName] = fileData
+		end
+	end
+
 	for scriptName, scriptSource in scriptsList do
 		if ScriptScroller:FindFirstChild(scriptName) then continue end
 		local newScript = Templates.ScriptTemplate:Clone()
@@ -515,6 +543,7 @@ local function createConsoleOutput(outputColor, ...)
 end
 -- main
 -- (pre-init)
+GUI.Name = generateRandomString(128)
 GUI.Parent = (gethui and gethui() or game:GetService("CoreGui").RobloxGui)
 draggify(MainUI, Topbar)
 
@@ -544,7 +573,7 @@ SidebarToggleBtn.MouseButton1Click:Connect(function()
 		sidebarBtnTween:Destroy()
 		fadeTween:Destroy()
 
-		task.wait(.05)
+		task.wait(.025)
 		sidebarBtnDebounce = true
 	end)
 end)
@@ -559,7 +588,7 @@ end
 -- (Executor - Container)
 -- (Buttons)
 ExecuteBtn.MouseButton1Click:Connect(function()
-	wrapFuncGlobal(loadstring(TextboxInput.Text, string.format("=Executor - %s", currentTab)))()
+	loadstring(TextboxInput.Text, string.format("=Executor - %s", currentTab))()
 end)
 
 ClearBtn.MouseButton1Click:Connect(function()
@@ -587,6 +616,7 @@ AddTabBtn.MouseButton1Click:Connect(function()
 end)
 
 TextboxInput:GetPropertyChangedSignal("Text"):Connect(updateTabData)
+TSListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateTabCanvasSize)
 
 -- (Search)
 SSearchInput.FocusLost:Connect(function(pressedEnter)
@@ -617,7 +647,7 @@ MainUI.Size, MainUI.BorderSizePixel = UDim2.new(), 0
 
 inputService.InputBegan:Connect(function(input)
 	if input.KeyCode == Enum.KeyCode.Equals and not inputService:GetFocusedTextBox() then
-		if (not uiToggleDebounce and not executorLoaded) then return end
+		if (not uiToggleDebounce or not executorLoaded) then return end
 
 		local toggleTween = toggleUI(not MainUI.Visible)
 		uiToggleDebounce = false
@@ -636,22 +666,17 @@ inputService.InputBegan:Connect(function(input)
 end)
 
 game.Close:Connect(function()
+	-- TODO: make a file saving system
+	-- well it does save but what's the point of this if u can't modify the file inside the executor
 	for fileName, fileData in scriptsList do
-		writefile(scriptListPath .. fileName, fileData)
+		writefile(scriptListPath .. "/" .. fileName, fileData)
 	end
 end)
 
 task.defer(function()
-	do -- script-list loader
+	do -- script-list initializer
 		if not isfolder(scriptListPath) then
 			makefolder(scriptListPath)
-		end
-
-		for _, filePath in listfiles(scriptListPath) do
-			if (isfolder(filePath) or scriptsList[filePath]) then continue end
-			local fileData = readfile(filePath)
-
-			scriptsList[filePath] = fileData
 		end
 	end
 
