@@ -30,8 +30,9 @@ getgenv().import = function(path, branch) -- TODO: make this only exist on execu
 
 				if (origSrc ~= cloudSrc) and not DEV_MODE then
 					writefile(currentPath, cloudSrc)
+				elseif DEV_MODE then
+					cloudSrc = (origSrc or cloudSrc)
 				end
-				cloudSrc = (origSrc or cloudSrc)
 			else
 				currentPath ..= "/" .. pathStr
 				if not isfolder(currentPath) then makefolder(currentPath) end
@@ -40,7 +41,7 @@ getgenv().import = function(path, branch) -- TODO: make this only exist on execu
 	else
 		return error(string.format("Cannot get '%s' with branch '%s' from the repository.", path, branch))
 	end
-	return loadstring(cloudSrc, "=" .. "executor-gui" .. path)
+	return loadstring(cloudSrc, "=executor-gui/" .. path)
 end
 
 -- main

@@ -588,7 +588,12 @@ end
 -- (Executor - Container)
 -- (Buttons)
 ExecuteBtn.MouseButton1Click:Connect(function()
-	loadstring(TextboxInput.Text, string.format("=Executor - %s", currentTab))()
+	-- TODO: fully sandbox this thing
+	local func = loadstring(TextboxInput.Text, string.format("=Executor - %s", currentTab))
+	wrapFuncGlobal(func, {
+		script = Instance.new("LocalScript"),
+	})
+	func()
 end)
 
 ClearBtn.MouseButton1Click:Connect(function()
@@ -619,8 +624,7 @@ TextboxInput:GetPropertyChangedSignal("Text"):Connect(updateTabData)
 TSListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateTabCanvasSize)
 
 -- (Search)
-SSearchInput.FocusLost:Connect(function(pressedEnter)
-	if not pressedEnter then return end
+SSearchInput.FocusLost:Connect(function()
 	searchScriptListFromName(SSearchInput.Text)
 end)
 
