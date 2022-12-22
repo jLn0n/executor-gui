@@ -719,7 +719,6 @@ task.defer(function()
 
 	createTab(defaultTab, [[print("jLn0n's executor on top!")]], true)
 	refreshScriptList()
-	MainUI.Size = UDim2.new()
 	toggleUI(true).Completed:Wait()
 	executorLoaded = true
 end)
