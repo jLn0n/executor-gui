@@ -1,7 +1,7 @@
 local I2L = {};
 
 -- Executor
-I2L["1"] = Instance.new("ScreenGui", game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui"));
+I2L["1"] = Instance.new("ScreenGui");
 I2L["1"]["ResetOnSpawn"] = false;
 I2L["1"]["IgnoreGuiInset"] = true;
 I2L["1"]["Name"] = [[Executor]];
@@ -14,6 +14,7 @@ I2L["2"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
 I2L["2"]["Size"] = UDim2.new(0, 575, 0, 350);
 I2L["2"]["BorderColor3"] = Color3.fromRGB(38, 40, 39);
 I2L["2"]["Position"] = UDim2.new(0.5, 0, 0.5, 0);
+I2L["23"]["Visible"] = false;
 I2L["2"]["Name"] = [[MainUI]];
 
 -- Executor.MainUI.Topbar
