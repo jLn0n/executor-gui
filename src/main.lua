@@ -1,4 +1,14 @@
+-- init
 if not import then return error("not using loader.lua") end
+local scriptVersion = "v0.0.3"
+local config do
+	local loadedConfig = select(1, ...) or table.create(0)
+
+	loadedConfig.customExecution = (if typeof(loadedConfig.customExecution) ~= "boolean" then false else loadedConfig.customExecution)
+	loadedConfig.executeFunc = (if typeof(loadedConfig.executeFunc) ~= "function" then loadstring else loadedConfig.executeFunc)
+
+	config = loadedConfig
+end
 -- services
 local inputService = game:GetService("UserInputService")
 local logService = game:GetService("LogService")
@@ -45,6 +55,7 @@ local TSListLayout = TabScroller.UIListLayout
 local AddTabBtn = Tabs.AddTab
 
 local TextIDE = Executor.TextIDE
+local LineHighlight = TextIDE.LineHighlight
 local TextLines = TextIDE.Lines
 local TLRender = TextLines.Render
 local TextboxScroller = TextIDE.Textbox
@@ -60,6 +71,7 @@ local ClearConsoleBtn = ConButtons.ClearConsole
 -- (Sidebar)
 local SdButtons = Sidebar.Buttons
 local SdFadeEffect = Sidebar.FadeEffect
+local VersionLabel = Sidebar.VersionLabel
 
 -- variables
 local stringList = "QWERTYUIOPASDFGHJKLZXCVBNM1234567890!@#$%^&*()"
@@ -100,24 +112,6 @@ local consoleColorTypes = {
 	[Enum.MessageType.MessageError] = Color3.fromRGB(215, 5, 10)
 }
 -- functions
-local function wrapFuncGlobal(func, customFenv) -- for execution sandbox
-	local fenv, fenvCache = {}, getfenv(0)
-	local fenvMT = {}
-	function fenvMT:__index(index)
-		return customFenv[index] or fenvCache[index]
-	end
-	function fenvMT:__newindex(index, value)
-		if fenvCache[index] then
-			fenvCache[index] = value
-		else
-			customFenv[index] = value
-		end
-	end
-	setmetatable(fenv, fenvMT)
-	setfenv(func, fenv)
-	return func
-end
-
 local function generateRandomString(lenght, seed)
 	local random = Random.new(seed or math.random(10000, 10000000))
 	local result = ""
@@ -281,7 +275,8 @@ local function IDESyntaxHighlight(inputBox: TextBox, params: {any}) -- https://g
 	if data == nil then
 		data = {
 			textSrc = "",
-			highlightRenders = table.create(3000),
+			textLines = table.create(10000),
+			highlightRenders = table.create(10000),
 		}
 		lastHighlightUpdate[inputBox] = data
 	elseif (not params.forceUpdate and data.textSrc == inputBox.Text) then
@@ -289,6 +284,7 @@ local function IDESyntaxHighlight(inputBox: TextBox, params: {any}) -- https://g
 	end
 
 	data.textSrc = source
+	data.textLines = string.split(source, "\n")
 
 	local lineFolder = inputBox:FindFirstChild("RenderContainer")
 	if not lineFolder then
@@ -299,8 +295,16 @@ local function IDESyntaxHighlight(inputBox: TextBox, params: {any}) -- https://g
 		lineFolder = newLineFolder
 	end
 
-	local _, numLines = string.gsub(source, "\n", "")
-	numLines += 1
+	local lineLabels = data.highlightRenders
+
+	if data.textSrc == "" then
+		for lineIndex = 1, #lineLabels do
+			if lineLabels[lineIndex].Text == "" then continue end
+			lineLabels[lineIndex].Text = ""
+		end
+
+		return
+	end
 
 	local textBounds = inputBox.TextBounds
 	while (textBounds.Y ~= textBounds.Y) or (textBounds.Y < 1) do
@@ -308,43 +312,36 @@ local function IDESyntaxHighlight(inputBox: TextBox, params: {any}) -- https://g
 		textBounds = inputBox.TextBounds
 	end
 
+	local numLines = #data.textLines
 	local textHeight = textBounds.Y / numLines * inputBox.LineHeight
 
-	local lineLabels = data.highlightRenders
-	for iter = 1, math.max(numLines, #lineLabels) do
-		local label: TextLabel? = lineLabels[iter]
-
-		if label then
-			label.Text = ""
-			label.TextSize = inputBox.TextSize
-		elseif not label then
-			label = Instance.new("TextLabel")
-			label.Name = iter
-			label.RichText = true
-			label.BackgroundTransparency = 1
-			label.Text = ""
-			label.TextXAlignment = Enum.TextXAlignment.Left
-			label.TextYAlignment = Enum.TextYAlignment.Top
-			label.TextColor3 = tokenColors.iden
-			label.Font = inputBox.Font
-			label.FontFace = inputBox.FontFace
-			label.TextSize = inputBox.TextSize
-			label.Parent = lineFolder
-			lineLabels[iter] = label
-		else
-			continue
-		end
-		label.Size = UDim2.new(1, 0, 0, math.ceil(textHeight))
-		label.Position = UDim2.fromScale(0, textHeight * (iter - 1) / inputBox.AbsoluteSize.Y)
-	end
-
-	local richText, index, lineNumber = table.create(0), 0, 1
+	local richText, index, lineNumber = table.create(5), 0, 1
 	for token, content in lexer.scan(source) do
 		local tokenColor = tokenColors[token] or tokenColors.iden
-
 		local lines = string.split(sanitizeText(content, "richtext"), "\n")
-		for l, line in lines do
-			if l > 1 then
+
+		for lineIndex, lineSrc in lines do
+			local lineLabel = lineLabels[lineNumber]
+			if not lineLabel then
+				lineLabel = Instance.new("TextLabel")
+				lineLabel.Name = lineNumber
+				lineLabel.RichText = true
+				lineLabel.BackgroundTransparency = 1
+				lineLabel.Text = ""
+				lineLabel.TextXAlignment = Enum.TextXAlignment.Left
+				lineLabel.TextYAlignment = Enum.TextYAlignment.Top
+				lineLabel.TextColor3 = tokenColors.iden
+				lineLabel.Font = inputBox.Font
+				lineLabel.FontFace = inputBox.FontFace
+				lineLabel.TextSize = inputBox.TextSize
+				lineLabel.Parent = lineFolder
+				lineLabels[lineNumber] = lineLabel
+			end
+
+			lineLabel.Size = UDim2.new(1, 0, 0, math.ceil(textHeight))
+			lineLabel.Position = UDim2.fromScale(0, textHeight * (lineNumber - 1) / inputBox.AbsoluteSize.Y)
+
+			if lineIndex > 1 then
 				-- Set line
 				lineLabels[lineNumber].Text = table.concat(richText)
 				-- Move to next line
@@ -355,15 +352,24 @@ local function IDESyntaxHighlight(inputBox: TextBox, params: {any}) -- https://g
 			index += 1
 
 			-- Only add RichText tags when the color is non-default and the characters are non-whitespace
-			if tokenColors ~= tokenColors.iden and string.find(line, "[%S%C]") then
-				richText[index] = string.format(colorFormatters[tokenColor], line)
+			if tokenColors ~= tokenColors.iden and string.find(lineSrc, "[%S%C]") then
+				richText[index] = string.format(colorFormatters[tokenColor], lineSrc)
 			else
-				richText[index] = line
+				richText[index] = lineSrc
 			end
 		end
 	end
 
-	lineLabels[lineNumber].Text = table.concat(richText)
+	-- Set final line
+	if richText[1] and lineLabels[lineNumber] then
+		lineLabels[lineNumber].Text = table.concat(richText)
+	end
+
+	-- Clear unused line labels
+	for lineIndex = lineNumber + 1, #lineLabels do
+		if lineLabels[lineIndex].Text == "" then continue end
+		lineLabels[lineIndex].Text = ""
+	end
 end
 
 local function refreshSyntaxHighlight()
@@ -388,24 +394,48 @@ local function setTokenColors(newTokenColors)
 	refreshSyntaxHighlight()
 end
 
+--[[local function getCurrentLinePosition(inputBox: TextBox)
+	local lines = string.split(inputBox.Text, "\n")
+
+	for lineIndex in ipairs(lines) do
+		if lineIndex > (inputBox.CursorPosition - 1) then
+			return lineIndex + 1
+		end
+	end
+	return #lines + 1
+end
+
+local function updateLineHighlight()
+	local currentLine = getCurrentLinePosition(TextboxInput) - 1
+
+	LineHighlight.Position = UDim2.new(
+		0,
+		2,
+		(TextboxInput.TextBounds.Y / TextboxScroller.AbsoluteSize.Y) / TextboxScroller.CanvasSize.Y.Offset,
+		((TextboxInput.TextSize * currentLine) - TextboxInput.TextSize)
+	)
+end--]]
+
 local function updateIDE()
-	task.defer(IDESyntaxHighlight, TextboxInput) -- render the highlight after 1 frame
+	--task.defer(updateLineHighlight)
+	task.defer(IDESyntaxHighlight, TextboxInput)
 	TextboxInput.Text = sanitizeText(TextboxInput.Text, "tabs") -- sanitize cringe \t (but it doesn't really sanitize it :sad:)
 
 	local linesRender = getLinesRender(TextboxInput.Text)
 	TLRender.Text = linesRender
 
-	local TextboxSize, linesSize = getTextSize(TextboxInput), getTextSize(TLRender)
-	TextLines.Size = UDim2.new(0, (linesSize.X + 10), 1, 0)
-	TextLines.CanvasSize = UDim2.new(0, 0, 0, (linesSize.Y + 7))
+	local TextboxSize, LinesSize = getTextSize(TextboxInput), getTextSize(TLRender)
+	TextLines.Size = UDim2.new(0, (LinesSize.X + 10), 1, 0)
+	TextLines.CanvasSize = UDim2.new(0, 0, 0, (LinesSize.Y + 7))
 
 	TextboxScroller.Position = UDim2.new(0, TextLines.Size.X.Offset, 0, 0)
 	TextboxScroller.Size = UDim2.new(0, (425 - TextLines.Size.X.Offset), 1, 0)
-	TextboxScroller.CanvasSize = UDim2.new(0, (TextboxSize.X + 7), 0, (TextboxSize.Y + 7))
+	TextboxScroller.CanvasSize = UDim2.fromOffset((TextboxSize.X + 7), (TextboxSize.Y + 7))
 end
 
 local function updateScroll()
 	TextLines.CanvasPosition = (Vector2.yAxis * TextboxScroller.CanvasPosition.Y)
+	--updateLineHighlight()
 end
 
 local function onMouseScroll(inputObj)
@@ -417,14 +447,14 @@ end
 local function selectTab(tabName: string)
 	if tabName == currentTab then return end -- no recursive thing
 
-	local selectedtabObj = textboxTabs[tabName]
+	local selectedTab = textboxTabs[tabName]
 	local currentTabObj = textboxTabs[currentTab]
-	if not selectedtabObj then return end
+	if not selectedTab then return end
 
 	currentTab = tabName
-	if currentTabObj then currentTabObj.BorderColor3 = selectedtabObj.BorderColor3 end
-	selectedtabObj.BorderColor3 = Color3.fromRGB(61, 64, 62)
-	TextboxInput.Text = selectedtabObj.Data.Value
+	if currentTabObj then currentTabObj.BorderColor3 = selectedTab.BorderColor3 end
+	selectedTab.BorderColor3 = Color3.fromRGB(61, 64, 62)
+	TextboxInput.Text = selectedTab.Data.Value
 end
 
 local function createTab(tabName: string, source: string?, removeCloseBtn: boolean?)
@@ -542,11 +572,13 @@ local function createConsoleOutput(outputColor, ...)
 	ConsoleScroller.CanvasSize = UDim2.fromOffset(CSListLayout.AbsoluteContentSize.X + 5, CSListLayout.AbsoluteContentSize.Y + 5)
 end
 -- main
--- (pre-init)
+-- (PRE-INIT)
 GUI.Name = generateRandomString(128)
 GUI.Parent = (gethui and gethui() or game:GetService("CoreGui").RobloxGui)
 draggify(MainUI, Topbar)
 
+VersionLabel.Text = scriptVersion
+LineHighlight.Visible = false
 -- (Topbar)
 CloseBtn.MouseButton1Click:Connect(function()
 	toggleUI(false).Completed:Wait()
@@ -588,12 +620,13 @@ end
 -- (Executor - Container)
 -- (Buttons)
 ExecuteBtn.MouseButton1Click:Connect(function()
-	-- TODO: fully sandbox this thing
-	local func = loadstring(TextboxInput.Text, string.format("=Executor - %s", currentTab))
-	wrapFuncGlobal(func, {
-		script = Instance.new("LocalScript"),
-	})
-	func()
+	table.foreach(config, print)
+	if (config.customExecution and config.executeFunc) then
+		local executeFunc = config.executeFunc
+		task.spawn(executeFunc, TextboxInput.Text, string.format("@Executor - %s", currentTab))
+	else
+		loadstring(TextboxInput.Text, string.format("@Executor - %s", currentTab))()
+	end
 end)
 
 ClearBtn.MouseButton1Click:Connect(function()
