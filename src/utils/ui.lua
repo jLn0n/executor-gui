@@ -14,7 +14,7 @@ I2L["2"]["AnchorPoint"] = Vector2.new(0.5, 0.5);
 I2L["2"]["Size"] = UDim2.new(0, 575, 0, 350);
 I2L["2"]["BorderColor3"] = Color3.fromRGB(38, 40, 39);
 I2L["2"]["Position"] = UDim2.new(0.5, 0, 0.5, 0);
-I2L["23"]["Visible"] = false;
+I2L["2"]["Visible"] = false;
 I2L["2"]["Name"] = [[MainUI]];
 
 -- Executor.MainUI.Topbar
