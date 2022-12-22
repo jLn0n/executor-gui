@@ -620,7 +620,6 @@ end
 -- (Executor - Container)
 -- (Buttons)
 ExecuteBtn.MouseButton1Click:Connect(function()
-	table.foreach(config, print)
 	if (config.customExecution and config.executeFunc) then
 		local executeFunc = config.executeFunc
 		task.spawn(executeFunc, TextboxInput.Text, string.format("@Executor - %s", currentTab))
