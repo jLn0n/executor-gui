@@ -41,8 +41,8 @@ getgenv().import = function(path, branch) -- TODO: make this only exist on execu
 	else
 		return error(string.format("Cannot get '%s' with branch '%s' from the repository.", path, branch))
 	end
-	return loadstring(cloudSrc, "=executor-gui/" .. path)
+	return loadstring(cloudSrc, "@executor-gui/" .. path)
 end
 
 -- main
-import("src/main.lua")()
+import("src/main.lua")(...)
