@@ -620,6 +620,7 @@ end
 -- (Executor - Container)
 -- (Buttons)
 ExecuteBtn.MouseButton1Click:Connect(function()
+	table.foreach(config, print)
 	if (config.customExecution and config.executeFunc) then
 		local executeFunc = config.executeFunc
 		task.spawn(executeFunc, TextboxInput.Text, string.format("@Executor - %s", currentTab))
@@ -718,6 +719,7 @@ task.defer(function()
 
 	createTab(defaultTab, [[print("jLn0n's executor on top!")]], true)
 	refreshScriptList()
+	MainUI.Size = UDim2.new()
 	toggleUI(true).Completed:Wait()
 	executorLoaded = true
 end)
