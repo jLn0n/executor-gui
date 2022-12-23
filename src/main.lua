@@ -55,10 +55,10 @@ local TSListLayout = TabScroller.UIListLayout
 local AddTabBtn = Tabs.AddTab
 
 local TextIDE = Executor.TextIDE
-local LineHighlight = TextIDE.LineHighlight
 local TextLines = TextIDE.Lines
 local TLRender = TextLines.Render
 local TextboxScroller = TextIDE.Textbox
+local LineHighlight = TextboxScroller.LineHighlight
 local TextboxInput = TextboxScroller.Input
 
 -- (Console)
@@ -84,6 +84,8 @@ local uiToggleDebounce = true
 local textIDEHidden = true
 local currentTab, defaultTab = "", "Main Tab"
 local tabCreateCount = 0
+
+local oldCurrentLine = 1
 
 local currentOpenUI = "Executor"
 local sidebarOpen = false
@@ -394,31 +396,34 @@ local function setTokenColors(newTokenColors)
 	refreshSyntaxHighlight()
 end
 
---[[local function getCurrentLinePosition(inputBox: TextBox)
-	local lines = string.split(inputBox.Text, "\n")
+local function getCurrentLinePosition(inputBox: TextBox)
+	local findIndex, currentLine = 0, 0
 
-	for lineIndex in ipairs(lines) do
-		if lineIndex > (inputBox.CursorPosition - 1) then
-			return lineIndex + 1
+	while true do
+		currentLine += 1
+		findIndex = string.find(inputBox.Text, "\n", findIndex + 1)
+
+		if not findIndex then break end
+		if findIndex > (inputBox.CursorPosition - 1) then
+			return currentLine
 		end
 	end
-	return #lines + 1
+	return currentLine
 end
 
-local function updateLineHighlight()
-	local currentLine = getCurrentLinePosition(TextboxInput) - 1
+local function updateLineHighlight(customLine: number)
+	local currentLine = customLine or (if TextboxInput:IsFocused() then getCurrentLinePosition(TextboxInput) else oldCurrentLine)
+	oldCurrentLine = (if customLine then oldCurrentLine else currentLine)
 
-	LineHighlight.Position = UDim2.new(
+	LineHighlight.Position = UDim2.fromOffset(
 		0,
-		2,
-		(TextboxInput.TextBounds.Y / TextboxScroller.AbsoluteSize.Y) / TextboxScroller.CanvasSize.Y.Offset,
-		((TextboxInput.TextSize * currentLine) - TextboxInput.TextSize)
+		(TextboxInput.TextSize * currentLine) - TextboxInput.TextSize
 	)
-end--]]
+end
 
 local function updateIDE()
-	--task.defer(updateLineHighlight)
 	task.defer(IDESyntaxHighlight, TextboxInput)
+	task.defer(updateLineHighlight)
 	TextboxInput.Text = sanitizeText(TextboxInput.Text, "tabs") -- sanitize cringe \t (but it doesn't really sanitize it :sad:)
 
 	local linesRender = getLinesRender(TextboxInput.Text)
@@ -434,8 +439,8 @@ local function updateIDE()
 end
 
 local function updateScroll()
+	task.defer(updateLineHighlight)
 	TextLines.CanvasPosition = (Vector2.yAxis * TextboxScroller.CanvasPosition.Y)
-	--updateLineHighlight()
 end
 
 local function onMouseScroll(inputObj)
@@ -455,6 +460,7 @@ local function selectTab(tabName: string)
 	if currentTabObj then currentTabObj.BorderColor3 = selectedTab.BorderColor3 end
 	selectedTab.BorderColor3 = Color3.fromRGB(61, 64, 62)
 	TextboxInput.Text = selectedTab.Data.Value
+	task.defer(updateLineHighlight, 1)
 end
 
 local function createTab(tabName: string, source: string?, removeCloseBtn: boolean?)
@@ -489,6 +495,7 @@ local function createTab(tabName: string, source: string?, removeCloseBtn: boole
 	newTab.Data.Value = (source or newTab.Data.Value)
 	newTab.Parent = TabScroller
 	selectTab(tabName)
+	task.defer(updateLineHighlight, 1)
 end
 
 local function updateTabData()
@@ -578,7 +585,6 @@ GUI.Parent = (gethui and gethui() or game:GetService("CoreGui").RobloxGui)
 draggify(MainUI, Topbar)
 
 VersionLabel.Text = scriptVersion
-LineHighlight.Visible = false
 -- (Topbar)
 CloseBtn.MouseButton1Click:Connect(function()
 	toggleUI(false).Completed:Wait()
@@ -640,6 +646,7 @@ end)
 RFScriptsBtn.MouseButton1Click:Connect(refreshScriptList)
 
 -- (TextboxIDE init)
+TextboxInput:GetPropertyChangedSignal("CursorPosition"):Connect(function() task.defer(updateLineHighlight) end)
 TextboxInput:GetPropertyChangedSignal("Text"):Connect(updateIDE)
 TextboxInput.InputChanged:Connect(onMouseScroll)
 TextboxScroller:GetPropertyChangedSignal("CanvasPosition"):Connect(updateScroll)
@@ -682,7 +689,7 @@ Topbar.Visible, Container.Visible = false, false
 MainUI.Size, MainUI.BorderSizePixel = UDim2.new(), 0
 
 inputService.InputBegan:Connect(function(input)
-	if input.KeyCode == Enum.KeyCode.Equals and not inputService:GetFocusedTextBox() then
+	if input.KeyCode == Enum.KeyCode.RightControl and not inputService:GetFocusedTextBox() then
 		if (not uiToggleDebounce or not executorLoaded) then return end
 
 		local toggleTween = toggleUI(not MainUI.Visible)

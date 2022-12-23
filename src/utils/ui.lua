@@ -1,7 +1,7 @@
 local I2L = {};
 
 -- Executor
-I2L["1"] = Instance.new("ScreenGui");
+I2L["1"] = Instance.new("ScreenGui", game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui"));
 I2L["1"]["ResetOnSpawn"] = false;
 I2L["1"]["IgnoreGuiInset"] = true;
 I2L["1"]["Name"] = [[Executor]];
@@ -177,55 +177,57 @@ I2L["10"]["Font"] = Enum.Font.Unknown;
 I2L["10"]["Name"] = [[Input]];
 I2L["10"]["ClearTextOnFocus"] = false;
 
--- Executor.MainUI.Container.Executor.TextIDE.Lines
-I2L["11"] = Instance.new("ScrollingFrame", I2L["e"]);
-I2L["11"]["Active"] = true;
-I2L["11"]["ScrollingDirection"] = Enum.ScrollingDirection.Y;
-I2L["11"]["BorderSizePixel"] = 0;
-I2L["11"]["CanvasSize"] = UDim2.new(0, 0, 0, 0);
-I2L["11"]["MidImage"] = [[rbxassetid://71274893]];
-I2L["11"]["TopImage"] = [[rbxassetid://71274893]];
-I2L["11"]["BackgroundColor3"] = Color3.fromRGB(38, 40, 39);
-I2L["11"]["ScrollingEnabled"] = false;
-I2L["11"]["BackgroundTransparency"] = 1;
-I2L["11"]["Size"] = UDim2.new(0, 18, 1, 0);
-I2L["11"]["ScrollBarImageColor3"] = Color3.fromRGB(38, 40, 39);
+-- Executor.MainUI.Container.Executor.TextIDE.Textbox.LineHighlight
+I2L["11"] = Instance.new("Frame", I2L["f"]);
+I2L["11"]["BorderSizePixel"] = 2;
+I2L["11"]["BackgroundColor3"] = Color3.fromRGB(214, 214, 214);
+I2L["11"]["BorderMode"] = Enum.BorderMode.Inset;
+I2L["11"]["BackgroundTransparency"] = 0.925000011920929;
+I2L["11"]["Size"] = UDim2.new(1, 0, 0, 16);
 I2L["11"]["BorderColor3"] = Color3.fromRGB(38, 40, 39);
-I2L["11"]["ScrollBarThickness"] = 0;
-I2L["11"]["Name"] = [[Lines]];
-I2L["11"]["BottomImage"] = [[rbxassetid://71274893]];
+I2L["11"]["Name"] = [[LineHighlight]];
+
+-- Executor.MainUI.Container.Executor.TextIDE.Lines
+I2L["12"] = Instance.new("ScrollingFrame", I2L["e"]);
+I2L["12"]["Active"] = true;
+I2L["12"]["ScrollingDirection"] = Enum.ScrollingDirection.Y;
+I2L["12"]["BorderSizePixel"] = 0;
+I2L["12"]["CanvasSize"] = UDim2.new(0, 0, 0, 0);
+I2L["12"]["MidImage"] = [[rbxassetid://71274893]];
+I2L["12"]["TopImage"] = [[rbxassetid://71274893]];
+I2L["12"]["BackgroundColor3"] = Color3.fromRGB(38, 40, 39);
+I2L["12"]["ScrollingEnabled"] = false;
+I2L["12"]["BackgroundTransparency"] = 1;
+I2L["12"]["Size"] = UDim2.new(0, 18, 1, 0);
+I2L["12"]["ScrollBarImageColor3"] = Color3.fromRGB(38, 40, 39);
+I2L["12"]["BorderColor3"] = Color3.fromRGB(38, 40, 39);
+I2L["12"]["ScrollBarThickness"] = 0;
+I2L["12"]["Name"] = [[Lines]];
+I2L["12"]["BottomImage"] = [[rbxassetid://71274893]];
 
 -- Executor.MainUI.Container.Executor.TextIDE.Lines.Render
-I2L["12"] = Instance.new("TextLabel", I2L["11"]);
-I2L["12"]["BorderSizePixel"] = 0;
-I2L["12"]["TextXAlignment"] = Enum.TextXAlignment.Right;
-I2L["12"]["TextYAlignment"] = Enum.TextYAlignment.Top;
-I2L["12"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
-I2L["12"]["FontFace"] = Font.new([[rbxasset://fonts/families/RobotoMono.json]], Enum.FontWeight.SemiBold, Enum.FontStyle.Normal);
-I2L["12"]["TextSize"] = 16;
-I2L["12"]["TextColor3"] = Color3.fromRGB(214, 214, 214);
-I2L["12"]["Size"] = UDim2.new(1, -5, 1, 0);
-I2L["12"]["Text"] = [[1]];
-I2L["12"]["Name"] = [[Render]];
-I2L["12"]["Font"] = Enum.Font.Unknown;
-I2L["12"]["BackgroundTransparency"] = 1;
+I2L["13"] = Instance.new("TextLabel", I2L["12"]);
+I2L["13"]["BorderSizePixel"] = 0;
+I2L["13"]["TextXAlignment"] = Enum.TextXAlignment.Right;
+I2L["13"]["TextYAlignment"] = Enum.TextYAlignment.Top;
+I2L["13"]["BackgroundColor3"] = Color3.fromRGB(255, 255, 255);
+I2L["13"]["FontFace"] = Font.new([[rbxasset://fonts/families/RobotoMono.json]], Enum.FontWeight.SemiBold, Enum.FontStyle.Normal);
+I2L["13"]["TextSize"] = 16;
+I2L["13"]["TextColor3"] = Color3.fromRGB(214, 214, 214);
+I2L["13"]["Size"] = UDim2.new(1, -5, 1, 0);
+I2L["13"]["Text"] = [[1]];
+I2L["13"]["Name"] = [[Render]];
+I2L["13"]["Font"] = Enum.Font.Unknown;
+I2L["13"]["BackgroundTransparency"] = 1;
 
 -- Executor.MainUI.Container.Executor.TextIDE.Lines.|
-I2L["13"] = Instance.new("Frame", I2L["11"]);
-I2L["13"]["BorderSizePixel"] = 0;
-I2L["13"]["BackgroundColor3"] = Color3.fromRGB(38, 40, 39);
-I2L["13"]["AnchorPoint"] = Vector2.new(1, 0);
-I2L["13"]["Size"] = UDim2.new(0, 1, 1, 1);
-I2L["13"]["Position"] = UDim2.new(1, 0, 0, 0);
-I2L["13"]["Name"] = [[|]];
-
--- Executor.MainUI.Container.Executor.TextIDE.LineHighlight
-I2L["14"] = Instance.new("Frame", I2L["e"]);
-I2L["14"]["BackgroundColor3"] = Color3.fromRGB(214, 214, 214);
-I2L["14"]["BackgroundTransparency"] = 0.925000011920929;
-I2L["14"]["Size"] = UDim2.new(1, -4, 0, 14);
-I2L["14"]["Position"] = UDim2.new(0, 2, 0, 2);
-I2L["14"]["Name"] = [[LineHighlight]];
+I2L["14"] = Instance.new("Frame", I2L["12"]);
+I2L["14"]["BorderSizePixel"] = 0;
+I2L["14"]["BackgroundColor3"] = Color3.fromRGB(38, 40, 39);
+I2L["14"]["AnchorPoint"] = Vector2.new(1, 0);
+I2L["14"]["Size"] = UDim2.new(0, 1, 1, 1);
+I2L["14"]["Position"] = UDim2.new(1, 0, 0, 0);
+I2L["14"]["Name"] = [[|]];
 
 -- Executor.MainUI.Container.Executor.Buttons
 I2L["15"] = Instance.new("Frame", I2L["d"]);
@@ -542,6 +544,5 @@ I2L["2e"]["Size"] = UDim2.new(0, 425, 0, 320);
 I2L["2e"]["Position"] = UDim2.new(1, 0, 0, 0);
 I2L["2e"]["Visible"] = false;
 I2L["2e"]["Name"] = [[FadeEffect]];
-
 
 return I2L["1"]
