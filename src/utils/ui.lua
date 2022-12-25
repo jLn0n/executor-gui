@@ -183,7 +183,7 @@ I2L["11"]["BorderSizePixel"] = 2;
 I2L["11"]["BackgroundColor3"] = Color3.fromRGB(214, 214, 214);
 I2L["11"]["BorderMode"] = Enum.BorderMode.Inset;
 I2L["11"]["BackgroundTransparency"] = 0.925000011920929;
-I2L["11"]["Size"] = UDim2.new(1, 0, 0, 16);
+I2L["11"]["Size"] = UDim2.new(1, 4, 0, 16);
 I2L["11"]["BorderColor3"] = Color3.fromRGB(38, 40, 39);
 I2L["11"]["Name"] = [[LineHighlight]];
 
