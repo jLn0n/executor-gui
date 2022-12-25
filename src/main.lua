@@ -419,7 +419,7 @@ local function updateLineHighlight(customLine: number?)
 	oldCurrentHighlightedLine = (if customLine then oldCurrentHighlightedLine else currentLine)
 
 	LineHighlight.Position = UDim2.fromOffset(
-		-2,
+		0,
 		(TextboxInput.TextSize * currentLine) - TextboxInput.TextSize
 	)
 end
