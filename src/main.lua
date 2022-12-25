@@ -4,6 +4,7 @@ local scriptVersion = "v0.0.3"
 local config do
 	local loadedConfig = select(1, ...) or table.create(0)
 
+	loadedConfig.customMainTabText = (if typeof(loadedConfig.customMainTabText) ~= "string" then [[print("jLn0n's executor on top!")]] else loadedConfig.customMainTabText)
 	loadedConfig.customExecution = (if typeof(loadedConfig.customExecution) ~= "boolean" then false else loadedConfig.customExecution)
 	loadedConfig.executeFunc = (if typeof(loadedConfig.executeFunc) ~= "function" then loadstring else loadedConfig.executeFunc)
 
@@ -81,11 +82,11 @@ local scriptListPath = "executor-gui/script-list"
 local executorLoaded = false
 local uiToggleDebounce = true
 
-local textIDEHidden = true
+local textIDENotHidden = true
 local currentTab, defaultTab = "", "Main Tab"
 local tabCreateCount = 0
 
-local oldCurrentLine = 1
+local oldCurrentHighlightedLine = 1
 
 local currentOpenUI = "Executor"
 local sidebarOpen = false
@@ -397,6 +398,8 @@ local function setTokenColors(newTokenColors)
 end
 
 local function getCurrentLinePosition(inputBox: TextBox)
+	if not inputBox then return end
+	if inputBox.CursorPosition == -1 then return oldCurrentHighlightedLine end
 	local findIndex, currentLine = 0, 0
 
 	while true do
@@ -411,12 +414,12 @@ local function getCurrentLinePosition(inputBox: TextBox)
 	return currentLine
 end
 
-local function updateLineHighlight(customLine: number)
-	local currentLine = customLine or (if TextboxInput:IsFocused() then getCurrentLinePosition(TextboxInput) else oldCurrentLine)
-	oldCurrentLine = (if customLine then oldCurrentLine else currentLine)
+local function updateLineHighlight(customLine: number?)
+	local currentLine = customLine or (if TextboxInput:IsFocused() then getCurrentLinePosition(TextboxInput) else oldCurrentHighlightedLine)
+	oldCurrentHighlightedLine = (if customLine then oldCurrentHighlightedLine else currentLine)
 
 	LineHighlight.Position = UDim2.fromOffset(
-		0,
+		-2,
 		(TextboxInput.TextSize * currentLine) - TextboxInput.TextSize
 	)
 end
@@ -439,7 +442,7 @@ local function updateIDE()
 end
 
 local function updateScroll()
-	task.defer(updateLineHighlight)
+	updateLineHighlight()
 	TextLines.CanvasPosition = (Vector2.yAxis * TextboxScroller.CanvasPosition.Y)
 end
 
@@ -495,7 +498,6 @@ local function createTab(tabName: string, source: string?, removeCloseBtn: boole
 	newTab.Data.Value = (source or newTab.Data.Value)
 	newTab.Parent = TabScroller
 	selectTab(tabName)
-	task.defer(updateLineHighlight, 1)
 end
 
 local function updateTabData()
@@ -578,6 +580,13 @@ local function createConsoleOutput(outputColor, ...)
 
 	ConsoleScroller.CanvasSize = UDim2.fromOffset(CSListLayout.AbsoluteContentSize.X + 5, CSListLayout.AbsoluteContentSize.Y + 5)
 end
+
+local function onMessageLog(message, msgType, timestamp)
+	timestamp = timestamp or os.clock()
+	message = string.format("%s | %s", os.date("%X", timestamp), message)
+
+	task.spawn(createConsoleOutput, msgType, message)
+end
 -- main
 -- (PRE-INIT)
 GUI.Name = generateRandomString(128)
@@ -639,15 +648,15 @@ ClearBtn.MouseButton1Click:Connect(function()
 end)
 
 HideTextBtn.MouseButton1Click:Connect(function()
-	textIDEHidden = not textIDEHidden
-	TextboxInput.Visible = textIDEHidden
+	textIDENotHidden = not textIDENotHidden
+	TextboxInput.Visible = textIDENotHidden
 end)
 
 RFScriptsBtn.MouseButton1Click:Connect(refreshScriptList)
 
 -- (TextboxIDE init)
-TextboxInput:GetPropertyChangedSignal("CursorPosition"):Connect(function() task.defer(updateLineHighlight) end)
 TextboxInput:GetPropertyChangedSignal("Text"):Connect(updateIDE)
+TextboxInput:GetPropertyChangedSignal("CursorPosition"):Connect(updateLineHighlight)
 TextboxInput.InputChanged:Connect(onMouseScroll)
 TextboxScroller:GetPropertyChangedSignal("CanvasPosition"):Connect(updateScroll)
 setTokenColors(tokenColors)
@@ -670,10 +679,8 @@ end)
 ScriptScroller:GetPropertyChangedSignal("CanvasSize"):Connect(onScriptScrollerCanvasResize)
 
 -- (Console - Container)
-logService.MessageOut:Connect(function(message, msgType)
-	message = string.format("%s | %s", os.date("%X"), message)
-	task.spawn(createConsoleOutput, msgType, message)
-end)
+logService.MessageOut:Connect(onMessageLog)
+logService.ServerMessageOut:Connect(onMessageLog)
 
 ClearConsoleBtn.MouseButton1Click:Connect(function()
 	for _, outputMsg in ConsoleScroller:GetChildren() do
@@ -723,7 +730,7 @@ task.defer(function()
 		end
 	end
 
-	createTab(defaultTab, [[print("jLn0n's executor on top!")]], true)
+	createTab(defaultTab, config.customMainTabText, true)
 	refreshScriptList()
 	toggleUI(true).Completed:Wait()
 	executorLoaded = true
