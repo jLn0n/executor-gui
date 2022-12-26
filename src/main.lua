@@ -1,6 +1,6 @@
 -- init
 if not import then return error("not using loader.lua") end
-local scriptVersion = "v0.0.3"
+local scriptVersion = "v0.0.4"
 local config do
 	local loadedConfig = select(1, ...) or table.create(0)
 
@@ -564,7 +564,7 @@ local function onScriptScrollerCanvasResize()
 	end
 end
 
-local function createConsoleOutput(outputColor, ...)
+local function createConsoleOutputLabel(outputColor, ...)
 	outputColor = outputColor or consoleColorTypes[Enum.MessageType.MessageOutput]
 	local message = table.concat({...}, " ")
 
@@ -585,7 +585,7 @@ local function onMessageLog(message, msgType, timestamp)
 	timestamp = timestamp or os.clock()
 	message = string.format("%s | %s", os.date("%X", timestamp), message)
 
-	task.spawn(createConsoleOutput, msgType, message)
+	task.spawn(createConsoleOutputLabel, msgType, message)
 end
 -- main
 -- (PRE-INIT)
@@ -691,7 +691,7 @@ ClearConsoleBtn.MouseButton1Click:Connect(function()
 	totalConsoleOutputs = 0
 end)
 
--- (post-init)
+-- (POST-INIT)
 Topbar.Visible, Container.Visible = false, false
 MainUI.Size, MainUI.BorderSizePixel = UDim2.new(), 0
 
@@ -735,3 +735,15 @@ task.defer(function()
 	toggleUI(true).Completed:Wait()
 	executorLoaded = true
 end)
+
+local execGuiAPI = {}
+execGuiAPI._VERSION = scriptVersion
+
+execGuiAPI.executor = {}
+execGuiAPI.executor.newTab = createTab
+execGuiAPI.executor.setIDETokenColors = setTokenColors
+
+execGuiAPI.console = {}
+execGuiAPI.console.createOutput = onMessageLog
+
+return execGuiAPI
