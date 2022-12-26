@@ -45,4 +45,4 @@ getgenv().import = function(path, branch) -- TODO: make this only exist on execu
 end
 
 -- main
-import("src/main.lua")(...)
+return import("src/main.lua")(...)
