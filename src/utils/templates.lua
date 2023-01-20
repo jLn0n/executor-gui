@@ -1,7 +1,7 @@
 local I2L = {};
 
 -- Templates
-I2L["1"] = Instance.new("Folder", game:GetService("JointsService"));
+I2L["1"] = Instance.new("Folder");
 I2L["1"]["Name"] = [[Templates]];
 
 -- Templates.TabTemplate
