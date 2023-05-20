@@ -1,7 +1,7 @@
 local I2L = {};
 
 -- Executor
-I2L["1"] = Instance.new("ScreenGui", game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui"));
+I2L["1"] = Instance.new("ScreenGui");
 I2L["1"]["ResetOnSpawn"] = false;
 I2L["1"]["IgnoreGuiInset"] = true;
 I2L["1"]["Name"] = [[Executor]];
