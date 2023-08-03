@@ -413,7 +413,7 @@ local function updateScroll()
 	TextLines.CanvasPosition = (Vector2.yAxis * TextboxScroller.CanvasPosition.Y)
 end
 
-local function onTextboxInputChanged(inputObj)
+local function onTextboxInputChanged(inputObj: InputObject)
 	if inputService:GetFocusedTextBox() ~= TextboxInput then return end
 	if (inputObj.UserInputType == Enum.UserInputType.MouseWheel) then
 		TextboxInput:ReleaseFocus()
