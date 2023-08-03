@@ -1,28 +1,43 @@
 -- init
-if not import then return error("not using loader.lua") end
-local scriptVersion = "v0.0.4"
+if not USING_JALON_LOADER then return error("[executor-gui]: not using loader.lua!") end
+local scriptVersion = "v0.1.0"
 local config do
 	local loadedConfig = select(1, ...) or table.create(0)
 
-	loadedConfig.customMainTabText = (if typeof(loadedConfig.customMainTabText) ~= "string" then [[print("jLn0n's executor on top!")]] else loadedConfig.customMainTabText)
+	loadedConfig.mainTabText = (if typeof(loadedConfig.mainTabText) ~= "string" then [[print("Hello World!")]] else loadedConfig.mainTabText)
 	loadedConfig.customExecution = (if typeof(loadedConfig.customExecution) ~= "boolean" then false else loadedConfig.customExecution)
 	loadedConfig.executeFunc = (if typeof(loadedConfig.executeFunc) ~= "function" then loadstring else loadedConfig.executeFunc)
 
 	config = loadedConfig
 end
+
+local _JALON_EXECUTOR_INTERNAL do
+	_JALON_EXECUTOR_INTERNAL = {}
+	getfenv()._JALON_EXECUTOR_INTERNAL = _JALON_EXECUTOR_INTERNAL
+end
+
 -- services
 local inputService = game:GetService("UserInputService")
 local logService = game:GetService("LogService")
-local textService = game:GetService("TextService")
+local runService = game:GetService("RunService")
 local tweenService = game:GetService("TweenService")
+
 -- imports
-local lexer = import("src/utils/lexer.lua")()
+local msgboxParams = import("src/utils/msgbox-params.lua")()
+local miscLib = import("src/utils/misc.lua")()
+local highlighterLib = import("src/utils/syntax-highlight.lua")()
 -- objects
 -- ui objects
-local GUI = import("src/utils/ui.lua")()
-local Templates = import("src/utils/templates.lua")()
+local GUI = import("src/ui/executor.lua")()
+_JALON_EXECUTOR_INTERNAL.Executor = GUI
 
 local MainUI = GUI.MainUI
+
+local Templates = import("src/ui/templates.lua")()
+_JALON_EXECUTOR_INTERNAL.Templates = Templates
+
+local TabObjectLib = import("src/utils/tab-object.lua")()
+local MsgBoxTemplates = Templates.MessageBox
 
 -- (Topbar)
 local Topbar = MainUI.Topbar
@@ -36,22 +51,29 @@ local Container = MainUI.Container
 local Executor = Container.Executor
 local Console = Container.Console
 local Sidebar = Container.Sidebar
+local PopupBackground = Container.PopupBackground
 
 -- (Executor)
-local ExecButtons = Executor.Buttons
-local ExecuteBtn = ExecButtons.Execute
-local ClearBtn = ExecButtons.Clear
-local HideTextBtn = ExecButtons.HideText
-local RFScriptsBtn = ExecButtons.RefreshScripts
+local ExecutorBtns = Executor.Buttons
+local ExecuteBtn = ExecutorBtns.Execute
+local ClearBtn = ExecutorBtns.Clear
+local HideTextBtn = ExecutorBtns.HideText
+local SaveFileBtn = ExecutorBtns.SaveFile
 
 local ScriptList = Executor.Scripts
-local ScriptScroller = ScriptList.List
-local SSListLayout = ScriptScroller.UIListLayout
-local SSearchUI = ScriptList.Search
-local SSearchInput = SSearchUI.Input
+local ScriptScroller = ScriptList.ListHolder.List
+local ScriptListLayout = ScriptScroller.UIListLayout
+local SLTopbar = ScriptList.Topbar
+local SLTopbarBtns = SLTopbar.Buttons
+local CreateFileBtn = SLTopbarBtns.Create
+local RenameFileBtn = SLTopbarBtns.Rename
+local DeleteFileBtn = SLTopbarBtns.Delete
+local SearchBtn = SLTopbarBtns.Search
+local SLSearch = SLTopbar.Search
+local SLSearchInput = SLSearch.Input
 
 local Tabs = Executor.Tabs
-local TabScroller = Tabs.List
+local TabScroller = Tabs.ListHolder.List
 local TSListLayout = TabScroller.UIListLayout
 local AddTabBtn = Tabs.AddTab
 
@@ -63,11 +85,12 @@ local LineHighlight = TextboxScroller.LineHighlight
 local TextboxInput = TextboxScroller.Input
 
 -- (Console)
-local ConsoleBG = Console.Background
-local ConsoleScroller = ConsoleBG.List
-local CSListLayout = ConsoleScroller.UIListLayout
-local ConButtons = Console.Buttons
-local ClearConsoleBtn = ConButtons.ClearConsole
+local ConsoleOutput = Console.Output
+local OutputScroller = ConsoleOutput.List
+local OutputListLayout = OutputScroller.UIListLayout
+local ConsoleBtnsHolder = Console.ButtonsHolder
+local ConsoleBtns = ConsoleBtnsHolder.Buttons
+local ClearConsoleBtn = ConsoleBtns.Clear
 
 -- (Sidebar)
 local SdButtons = Sidebar.Buttons
@@ -75,94 +98,89 @@ local SdFadeEffect = Sidebar.FadeEffect
 local VersionLabel = Sidebar.VersionLabel
 
 -- variables
-local stringList = "QWERTYUIOPASDFGHJKLZXCVBNM1234567890!@#$%^&*()"
+local executorStates = {
+	["Loaded"] = false,
+	["UIToggleDebounce"] = true,
+	["UIToggled"] = true
+}
+
+local activeContainers = {}
+local sidebarStates = {
+	["CurrentOpenUI"] = "Executor",
+	["SidebarOpened"] = false,
+	["SidebarBtnDebounce"] = true
+}
+
+local tabObjsList = {}
+local tabsState = {
+	["CurrentTab"] = "",
+	["DefaultTab"] = "Main Tab",
+	["TabCreationDebounce"] = true,
+	["CreatedTabCount"] = 0,
+}
+
+local textboxEditorInfo = {
+	["EditorHidden"] = false,
+	["OldHighlightedLine"] = 1,
+	["CurrentSyntaxRenderThread"] = nil
+}
 
 local scriptListPath = "executor-gui/script-list"
-
-local executorLoaded = false
-local uiToggleDebounce = true
-
-local textIDENotHidden = true
-local currentTab, defaultTab = "", "Main Tab"
-local tabCreateCount = 0
-
-local oldCurrentHighlightedLine = 1
-
-local currentOpenUI = "Executor"
-local sidebarOpen = false
-local sidebarBtnDebounce = true
-
-local totalConsoleOutputs = 0
-
-local scriptsList = table.create(0)
-local textboxTabs = table.create(0)
-local lastHighlightUpdate = table.create(0)
-local colorFormatters = table.create(8)
-local tokenColors = {
-	["background"] = Color3.fromRGB(21, 20, 23),
-	["iden"] = Color3.fromRGB(211, 211, 211),
-	["keyword"] = Color3.fromRGB(215, 174, 255),
-	["builtin"] = Color3.fromRGB(131, 206, 255),
-	["string"] = Color3.fromRGB(196, 255, 193),
-	["number"] = Color3.fromRGB(255, 125, 125),
-	["comment"] = Color3.fromRGB(140, 140, 155),
-	["operator"] = Color3.fromRGB(255, 239, 148),
+local scriptFilesList = {}
+local scriptFileStates = {
+	["IsRenaming"] = false,
+	["IsDeleting"] = false,
+	["SearchInputOpen"] = false,
 }
+
 local consoleColorTypes = {
 	[Enum.MessageType.MessageOutput] = Color3.fromRGB(213, 213, 213),
 	[Enum.MessageType.MessageInfo] = Color3.fromRGB(5, 145, 245),
 	[Enum.MessageType.MessageWarning] = Color3.fromRGB(255, 230, 85),
 	[Enum.MessageType.MessageError] = Color3.fromRGB(215, 5, 10)
 }
--- functions
-local function generateRandomString(lenght, seed)
-	local random = Random.new(seed or math.random(10000, 10000000))
-	local result = ""
 
-	for _ = 1, lenght do
-		local randNumber = random:NextInteger(1, #stringList)
-		result ..= string.sub(stringList, randNumber, randNumber)
-	end
-	return result
+-- functions
+-- crappy hack to make buttons or something similar not interactable
+local function _canModifyActiveProperty(object: Instance): boolean
+	if not object:IsA("GuiObject") then return false end
+	if not (
+		object:IsA("GuiButton") or
+		object:IsA("ScrollingFrame") or
+		object:IsA("TextBox")
+	) then return false end
+	return true
 end
 
-local function draggify(frame: Frame, button: Frame?)
-	local dragToggle = false
-	local dragInput, dragStart, startPos
+local function setContainerUIActive(uiName: string, value: boolean)
+	local containerUI = Container[uiName]
+	if not containerUI then return end
+	activeContainers[uiName] = value
 
-	button.InputBegan:Connect(function(input)
-		if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then
-			dragStart, startPos = input.Position, frame.Position
-			dragToggle = true
+	for _, object in containerUI:GetDescendants() do
+		if not _canModifyActiveProperty(object) then continue end
 
-			input:GetPropertyChangedSignal("UserInputState"):Connect(function()
-				if input.UserInputState == Enum.UserInputState.End then
-					dragToggle = false
+		object.Active = value
+
+		-- workarounds >:(
+		if object:IsA("TextBox") and not object.Active then
+			task.spawn(function()
+				while not object.Active do task.wait()
+					object:ReleaseFocus(false)
 				end
 			end)
+		elseif object:IsA("GuiButton") then
+			object.AutoButtonColor = value
 		end
-	end)
-
-	button.InputChanged:Connect(function(input)
-		if (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-			dragInput = input
-		end
-	end)
-
-	inputService.InputChanged:Connect(function(input)
-		if input == dragInput and dragToggle then
-			local delta = input.Position - dragStart
-			local pos = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-			frame.Position = pos
-		end
-	end)
+	end
 end
+-- crappy hack end
 
-local function toggleUI(toggleBool: boolean)
+local function toggleUI(toggleBool: boolean): Tween
 	local tweenObj = tweenService:Create(
 		MainUI,
 		TweenInfo.new(1, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
-		{Size = (toggleBool and UDim2.new(0, 575, 0, 350) or UDim2.new()), BorderSizePixel = (toggleBool and 1 or 0)}
+		{Size = (toggleBool and UDim2.fromOffset(625, 375) or UDim2.new()), BorderSizePixel = (toggleBool and 1 or 0)}
 	)
 
 	Topbar.Visible, Container.Visible = false, false
@@ -182,11 +200,12 @@ local function toggleUI(toggleBool: boolean)
 		end)
 	end
 
+	setContainerUIActive(sidebarStates.CurrentOpenUI, true)
 	tweenObj:Play()
 	return tweenObj
 end
 
-local function setSdBtnRot(rotation: number)
+local function setSdBtnRot(rotation: number): Tween
 	local tweenInfo = TweenInfo.new(.25, Enum.EasingStyle.Quint, Enum.EasingDirection.InOut)
 	local tweenObj = tweenService:Create(SidebarToggleBtn, tweenInfo, {
 		Rotation = rotation
@@ -195,7 +214,7 @@ local function setSdBtnRot(rotation: number)
 	return tweenObj
 end
 
-local function setSidebarVisible(visible: boolean)
+local function setSidebarVisible(visible: boolean): (Tween, Tween)
 	local sidebarTween, fadeTween = tweenService:Create(
 		Sidebar,
 		TweenInfo.new(.5, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
@@ -203,203 +222,146 @@ local function setSidebarVisible(visible: boolean)
 	), tweenService:Create(
 		SdFadeEffect,
 		TweenInfo.new(.25, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
-		{Size = (if visible then UDim2.fromOffset(425, 320) else UDim2.fromOffset(0, 320))}
+		{Size = (if visible then UDim2.new(0, (MainUI.AbsoluteSize.X - 150), 1, 355) else UDim2.fromOffset(0, 355))}
 	)
 
 	SdFadeEffect.Visible = visible
 	return sidebarTween, fadeTween
 end
 
-local function setContainerUI(uiName)
+local function setContainerUI(uiName: string)
 	local sidebarTween, fadeTween = setSidebarVisible(false)
 	local sidebarBtnTween = setSdBtnRot(0)
 
-	sidebarOpen = false
+	sidebarStates.SidebarOpened = false
 	sidebarBtnTween:Play()
 	sidebarTween:Play()
 	fadeTween:Play()
 
-	if uiName ~= currentOpenUI then
-		Container[currentOpenUI].Visible = false
+	if uiName ~= sidebarStates.CurrentOpenUI then
+		setContainerUIActive(uiName, true)
+		Container[sidebarStates.CurrentOpenUI].Visible = false
 		Container[uiName].Visible = true
-		currentOpenUI = uiName
+		sidebarStates.CurrentOpenUI = uiName
 	end
 end
 
-local function getTextSize(inputBox: TextBox)
-	local params = Instance.new("GetTextBoundsParams")
-	params.Text = inputBox.Text
-	params.Font = inputBox.FontFace
-	params.Size = inputBox.TextSize
-	params.Width = 1e6
+local function addHoverDesc(button: TextButton | ImageButton, descText: string)
+	local hoverDescObj = Templates.HoverTemplate:Clone()
+	local hoverLabel = hoverDescObj.Label
 
-	local succ, textSize = pcall(textService.GetTextBoundsAsync, textService, params)
+	hoverLabel.Text = descText
+	local textSize = miscLib.GetTextSize(hoverLabel)
+	hoverDescObj.Size = UDim2.fromOffset(textSize.X + 10, 25)
 
-	return (
-		if succ then
-			textSize
+	local isInsideButton;
+
+	local connection = runService.RenderStepped:Connect(function()
+		local mousePos = inputService:GetMouseLocation()
+
+		if isInsideButton and (executorStates.UIToggled and (button.Active and button.Visible)) then
+			hoverDescObj.Parent = GUI
+			hoverDescObj.Position = UDim2.fromOffset(mousePos.X + 30, mousePos.Y)
 		else
-			error(textSize)
-	)
+			hoverDescObj.Parent = nil
+		end
+	end)
+
+	button.MouseEnter:Connect(function()
+		isInsideButton = true
+	end)
+
+	button.MouseLeave:Connect(function()
+		isInsideButton = false
+	end)
+
+	button.Destroying:Once(function()
+		connection:Disconnect()
+	end)
+end
+
+local function newMessageBox(msgBoxType: string, params)
+	local msgBoxObj = MsgBoxTemplates:FindFirstChild(msgBoxType)
+	if not msgBoxObj then return end
+	msgBoxObj = msgBoxObj:Clone()
+
+	local msgBoxBtnsContainer = msgBoxObj.Buttons
+	local msgBoxTopbar = msgBoxObj.Topbar
+	local topbarLabel = msgBoxTopbar.Label
+
+	local thread = coroutine.running()
+	local result = {}
+	local _connections = {}
+	local msgBoxBtnsList = msgBoxBtnsContainer:GetChildren()
+
+	topbarLabel.Text = params.Title
+
+	local function onButtonClicked(buttonObj)
+		result.ClickedButton = buttonObj.LayoutOrder
+		PopupBackground.Visible = false
+
+		for _, connection in _connections do
+			connection:Disconnect()
+		end
+		msgBoxObj:Destroy()
+		setContainerUIActive(sidebarStates.CurrentOpenUI, not sidebarStates.SidebarOpened)
+		table.clear(_connections)
+		task.spawn(thread, result)
+	end
+
+	if ( msgBoxType == "Default") then
+		local textContent = msgBoxObj.Label
+		textContent.Text = params.TextContent
+	elseif msgBoxType == "TextInput" then
+		local textboxHolder = msgBoxObj.TextboxHolder
+		local contentLabel = textboxHolder.Label
+		local textboxInput = textboxHolder.Textbox
+
+		contentLabel.Text = params.TextContent
+		table.insert(_connections, textboxInput:GetPropertyChangedSignal("Text"):Connect(function()
+			result.InputContent = textboxInput.Text
+		end))
+	end
+
+	for _, msgBoxBtn in msgBoxBtnsList do
+		if not msgBoxBtn:IsA("GuiObject") then continue end
+		if (msgBoxBtn.LayoutOrder + 1) > (params.ButtonCount or #msgBoxBtnsList) then
+			msgBoxBtn:Destroy()
+			continue
+		end
+
+		msgBoxBtn.Text = params[msgBoxBtn.Name .. "Text"] or msgBoxBtn.Text
+		local buttonTextSize = miscLib.GetTextSize(msgBoxBtn)
+		local buttonSizeX = (if buttonTextSize.X > 60 then buttonTextSize.X + 5 else 60)
+		msgBoxBtn.Size = UDim2.new(0, buttonSizeX, 1, 0)
+
+		table.insert(_connections, miscLib.ButtonClickEvent(
+			msgBoxBtn,
+			Enum.UserInputType.MouseButton1,
+			miscLib.BindFunction(onButtonClicked, msgBoxBtn)
+		))
+	end
+
+	PopupBackground.Visible = true
+	msgBoxObj.Parent = PopupBackground
+	setContainerUIActive(sidebarStates.CurrentOpenUI, false)
+
+	return coroutine.yield()
 end
 
 local function getLinesRender(text: string)
 	local result = ""
-	local _, lines = string.gsub(text, "\n", "")
-	lines += 1
+	local lines = select(2, string.gsub(text, "\n", ""))
 
-	for line = 1, lines do
+	for line = 1, lines + 1 do
 		result ..= tostring(line) .. "\n"
 	end
 	return result
 end
 
-local function sanitizeText(text: string, ...)
-	local args = {...}
-
-	for _, arg in args do
-		if arg == "richtext" then
-			text = string.gsub(string.gsub(string.gsub(string.gsub(string.gsub(text, "&", "&amp;"), "<", "&lt;"), ">", "&gt;"), '"', "&quot;"), "'", "&apos;")
-		elseif arg == "tabs" then
-			text = string.gsub(text, "\t", "    ")
-		elseif arg == "control" then
-			text = string.gsub(text, "[\0\1\2\3\4\5\6\7\8\11\12\13\14\15\16\17\18\19\20\21\22\23\24\25\26\27\28\29\30\31]+", "")
-		end
-	end
-
-	return text
-end
-
-local function IDESyntaxHighlight(inputBox: TextBox, params: {any}) -- https://github.com/boatbomber/Highlighter/blob/main/src/init.lua
-	params = params or table.create(0)
-	local source = sanitizeText(params.textSrc or inputBox.Text, "control", "tabs")
-
-	local data = lastHighlightUpdate[inputBox]
-	if data == nil then
-		data = {
-			textSrc = "",
-			textLines = table.create(10000),
-			highlightRenders = table.create(10000),
-		}
-		lastHighlightUpdate[inputBox] = data
-	elseif (not params.forceUpdate and data.textSrc == inputBox.Text) then
-		return
-	end
-
-	data.textSrc = source
-	data.textLines = string.split(source, "\n")
-
-	local lineFolder = inputBox:FindFirstChild("RenderContainer")
-	if not lineFolder then
-		local newLineFolder = Instance.new("Folder")
-		newLineFolder.Name = "RenderContainer"
-		newLineFolder.Parent = inputBox
-
-		lineFolder = newLineFolder
-	end
-
-	local lineLabels = data.highlightRenders
-
-	if data.textSrc == "" then
-		for lineIndex = 1, #lineLabels do
-			if lineLabels[lineIndex].Text == "" then continue end
-			lineLabels[lineIndex].Text = ""
-		end
-
-		return
-	end
-
-	local textBounds = inputBox.TextBounds
-	while (textBounds.Y ~= textBounds.Y) or (textBounds.Y < 1) do
-		task.wait()
-		textBounds = inputBox.TextBounds
-	end
-
-	local numLines = #data.textLines
-	local textHeight = textBounds.Y / numLines * inputBox.LineHeight
-
-	local richText, index, lineNumber = table.create(5), 0, 1
-	for token, content in lexer.scan(source) do
-		local tokenColor = tokenColors[token] or tokenColors.iden
-		local lines = string.split(sanitizeText(content, "richtext"), "\n")
-
-		for lineIndex, lineSrc in lines do
-			local lineLabel = lineLabels[lineNumber]
-			if not lineLabel then
-				lineLabel = Instance.new("TextLabel")
-				lineLabel.Name = lineNumber
-				lineLabel.RichText = true
-				lineLabel.BackgroundTransparency = 1
-				lineLabel.Text = ""
-				lineLabel.TextXAlignment = Enum.TextXAlignment.Left
-				lineLabel.TextYAlignment = Enum.TextYAlignment.Top
-				lineLabel.TextColor3 = tokenColors.iden
-				lineLabel.Font = inputBox.Font
-				lineLabel.FontFace = inputBox.FontFace
-				lineLabel.TextSize = inputBox.TextSize
-				lineLabel.Parent = lineFolder
-				lineLabels[lineNumber] = lineLabel
-			end
-
-			lineLabel.Size = UDim2.new(1, 0, 0, math.ceil(textHeight))
-			lineLabel.Position = UDim2.fromScale(0, textHeight * (lineNumber - 1) / inputBox.AbsoluteSize.Y)
-
-			if lineIndex > 1 then
-				-- Set line
-				lineLabels[lineNumber].Text = table.concat(richText)
-				-- Move to next line
-				lineNumber += 1
-				index = 0
-				table.clear(richText)
-			end
-			index += 1
-
-			-- Only add RichText tags when the color is non-default and the characters are non-whitespace
-			if tokenColors ~= tokenColors.iden and string.find(lineSrc, "[%S%C]") then
-				richText[index] = string.format(colorFormatters[tokenColor], lineSrc)
-			else
-				richText[index] = lineSrc
-			end
-		end
-	end
-
-	-- Set final line
-	if richText[1] and lineLabels[lineNumber] then
-		lineLabels[lineNumber].Text = table.concat(richText)
-	end
-
-	-- Clear unused line labels
-	for lineIndex = lineNumber + 1, #lineLabels do
-		if lineLabels[lineIndex].Text == "" then continue end
-		lineLabels[lineIndex].Text = ""
-	end
-end
-
-local function refreshSyntaxHighlight()
-	for textObject, data in lastHighlightUpdate do
-		for _, lineLabel in ipairs(data.Lines) do
-			lineLabel.TextColor3 = tokenColors["iden"]
-		end
-
-		IDESyntaxHighlight(textObject, {
-			textSrc = data.Text,
-			forceUpdate = true,
-		})
-	end
-end
-
-local function setTokenColors(newTokenColors)
-	for token, color in newTokenColors do
-		tokenColors[token] = color
-		colorFormatters[color] = string.format("<font color=\"#%.2x%.2x%.2x\">", color.R * 255, color.G * 255, color.B * 255) .. "%s</font>"
-	end
-
-	refreshSyntaxHighlight()
-end
-
 local function getCurrentLinePosition(inputBox: TextBox)
 	if not inputBox then return end
-	if inputBox.CursorPosition == -1 then return oldCurrentHighlightedLine end
+	if inputBox.CursorPosition == -1 then return textboxEditorInfo.OldHighlightedLine end
 	local findIndex, currentLine = 0, 0
 
 	while true do
@@ -415,8 +377,8 @@ local function getCurrentLinePosition(inputBox: TextBox)
 end
 
 local function updateLineHighlight(customLine: number?)
-	local currentLine = customLine or (if TextboxInput:IsFocused() then getCurrentLinePosition(TextboxInput) else oldCurrentHighlightedLine)
-	oldCurrentHighlightedLine = (if customLine then oldCurrentHighlightedLine else currentLine)
+	local currentLine = customLine or (if TextboxInput:IsFocused() then getCurrentLinePosition(TextboxInput) else textboxEditorInfo.OldHighlightedLine)
+	textboxEditorInfo.OldHighlightedLine = (if customLine then textboxEditorInfo.OldHighlightedLine else currentLine)
 
 	LineHighlight.Position = UDim2.fromOffset(
 		0,
@@ -424,20 +386,25 @@ local function updateLineHighlight(customLine: number?)
 	)
 end
 
-local function updateIDE()
-	task.defer(IDESyntaxHighlight, TextboxInput)
+local function updateEditor()
+	if (
+		textboxEditorInfo.CurrentSyntaxRenderThread and
+		coroutine.status(textboxEditorInfo.CurrentSyntaxRenderThread) ~= "dead"
+	) then
+		task.cancel(textboxEditorInfo.CurrentSyntaxRenderThread)
+	end
+	textboxEditorInfo.CurrentSyntaxRenderThread = task.defer(highlighterLib.Render, TextboxInput)
 	task.defer(updateLineHighlight)
-	TextboxInput.Text = sanitizeText(TextboxInput.Text, "tabs") -- sanitize cringe \t (but it doesn't really sanitize it :sad:)
 
 	local linesRender = getLinesRender(TextboxInput.Text)
 	TLRender.Text = linesRender
 
-	local TextboxSize, LinesSize = getTextSize(TextboxInput), getTextSize(TLRender)
+	local TextboxSize, LinesSize = miscLib.GetTextSize(TextboxInput), miscLib.GetTextSize(TLRender)
 	TextLines.Size = UDim2.new(0, (LinesSize.X + 10), 1, 0)
 	TextLines.CanvasSize = UDim2.new(0, 0, 0, (LinesSize.Y + 7))
 
 	TextboxScroller.Position = UDim2.new(0, TextLines.Size.X.Offset, 0, 0)
-	TextboxScroller.Size = UDim2.new(0, (425 - TextLines.Size.X.Offset), 1, 0)
+	TextboxScroller.Size = UDim2.new(1, -TextLines.Size.X.Offset, 1, 0)
 	TextboxScroller.CanvasSize = UDim2.fromOffset((TextboxSize.X + 7), (TextboxSize.Y + 7))
 end
 
@@ -446,139 +413,246 @@ local function updateScroll()
 	TextLines.CanvasPosition = (Vector2.yAxis * TextboxScroller.CanvasPosition.Y)
 end
 
-local function onMouseScroll(inputObj)
+local function onTextboxInputChanged(inputObj)
+	if inputService:GetFocusedTextBox() ~= TextboxInput then return end
 	if (inputObj.UserInputType == Enum.UserInputType.MouseWheel) then
 		TextboxInput:ReleaseFocus()
+	elseif (inputObj.UserInputType == Enum.UserInputType.TextInput) then
+		-- TODO: add cursor follow in scroller when typing
 	end
 end
 
+local function findTabObj(tabName: string)
+	for tabIndex, tabObj in tabObjsList do
+		if tabObj.Name ~= tabName then continue end
+		return tabObj, tabIndex
+	end
+	return nil
+end
+
 local function selectTab(tabName: string)
-	if tabName == currentTab then return end -- no recursive thing
+	if tabName == tabsState.CurrentTab then return end -- no recursive thing
 
-	local selectedTab = textboxTabs[tabName]
-	local currentTabObj = textboxTabs[currentTab]
-	if not selectedTab then return end
+	local selectedTabObj = findTabObj(tabName)
+	local currentTabObj = findTabObj(tabsState.CurrentTab)
+	if not selectedTabObj then return end
 
-	currentTab = tabName
-	if currentTabObj then currentTabObj.BorderColor3 = selectedTab.BorderColor3 end
-	selectedTab.BorderColor3 = Color3.fromRGB(61, 64, 62)
-	TextboxInput.Text = selectedTab.Data.Value
+	tabsState.CurrentTab = tabName
+	TextboxInput.Text = selectedTabObj.ContentSource
+
+	if currentTabObj then
+		currentTabObj:Select(false)
+	end
+	selectedTabObj:Select(true)
+
+	task.spawn(updateEditor)
 	task.defer(updateLineHighlight, 1)
 end
 
 local function createTab(tabName: string, source: string?, removeCloseBtn: boolean?)
-	local newTab = Templates.TabTemplate:Clone()
-	local TabLabel = newTab.Label
-	local TabCloseBtn = newTab.Close
+	local tabObj, tabIndex
 
-	newTab.Name, TabLabel.Text = tabName, tabName
-	local textSize = getTextSize(TabLabel)
-	local textSizeX = (textSize.X + 10) + (if not removeCloseBtn then 20 else 0)
-
-	newTab.Size = UDim2.new(0, textSizeX, 0, 30)
-	if removeCloseBtn then
-		TabLabel.Size = UDim2.fromScale(1, 1)
-
-		TabCloseBtn:Destroy()
-	else
-		TabLabel.Size = UDim2.new(0, textSizeX - 20, 1, 0)
-
-		TabCloseBtn.MouseButton1Click:Connect(function()
-			selectTab(defaultTab)
-			newTab:Destroy()
-			textboxTabs[tabName] = nil
-		end)
+	local function onTabClicked()
+		selectTab(tabObj.Name)
 	end
 
-	TabLabel.MouseButton1Click:Connect(function()
-		selectTab(tabName)
-	end)
+	tabObj = TabObjectLib.new(
+		source,
+		onTabClicked,
+		if not removeCloseBtn then
+		function()
+			local msgBoxResult = newMessageBox("Default", {
+				Title = `Close tab '{tabObj.Name}'`,
+				TextContent = "Do you really want to close this tab?.",
+				ButtonCount = 2,
+			})
 
-	textboxTabs[tabName] = newTab
-	newTab.Data.Value = (source or newTab.Data.Value)
-	newTab.Parent = TabScroller
+			if msgBoxResult.ClickedButton == 0 then
+				selectTab(tabsState.DefaultTab)
+				tabObj:Destroy()
+				table.remove(tabObjsList, tabIndex)
+			end
+		end
+		else nil
+	)
+
+	table.insert(tabObjsList, tabObj)
+	tabIndex = table.find(tabObjsList, tabObj)
+
+	tabObj:Init()
+	tabObj._TabObj.Parent = TabScroller
+
+	tabObj:SetName(tabName)
 	selectTab(tabName)
+	return tabObj
 end
 
 local function updateTabData()
-	local tabObj = textboxTabs[currentTab]
+	local tabObj = findTabObj(tabsState.CurrentTab)
 	if not tabObj then return end
 
-	tabObj.Data.Value = TextboxInput.Text
+	tabObj.ContentSource = TextboxInput.Text
 end
 
 local function updateTabCanvasSize()
 	TabScroller.CanvasSize = UDim2.fromOffset(TSListLayout.AbsoluteContentSize.X, 0)
 end
 
-local function refreshScriptList(dontReloadScriptsFolder: boolean)
-	if not dontReloadScriptsFolder then
-		for _, filePath in listfiles(scriptListPath) do
-			if (isfolder(filePath) or scriptsList[filePath]) then continue end
-			local fileData = readfile(filePath)
-			local fileName = string.split(filePath, "\\")
-			fileName = fileName[#fileName]
+local function sanitizeScriptFileName(fileName: string): string
+	if #fileName < 1 then
+		return
+	end
 
-			scriptsList[fileName] = fileData
+	-- TODO: improve sanitization (maybe in v0.1.1)
+	fileName = string.gsub(fileName, "[\0\1\2\3\4\5\6\7\8\11\12\13\14\15\16\17\18\19\20\21\22\23\24\25\26\27\28\29\30\31]+", "")
+	fileName = string.gsub(fileName, ".", function(value)
+		return (if string.byte(value) > 126 then "" else value)
+	end)
+
+	local fileExtension = string.split(fileName, ".")
+	local fileIndexes = #fileExtension
+	fileExtension = fileExtension[fileIndexes]
+
+	if fileIndexes < 3 and #fileExtension[1] < 1 then
+		return
+	end
+
+	-- checks if no file extension provided
+	if fileExtension == fileName then
+		fileName ..= ".lua"
+	end
+	return fileName
+end
+
+local onScriptFileClicked, refreshScriptList
+local function deleteScriptFile(scriptFileName: string, exemptOpenedTab: boolean?)
+	local fileNamePath = `{scriptListPath}/{scriptFileName}`
+	if not isfile(fileNamePath) then return end
+
+	local scriptObj = ScriptScroller:FindFirstChild(scriptFileName)
+	if scriptObj then
+		scriptObj:Destroy()
+	end
+
+	if not exemptOpenedTab then
+		local scriptTabObj, tabIndex = findTabObj(scriptFileName)
+		if scriptTabObj then
+			scriptTabObj:Destroy()
+			table.remove(tabObjsList, tabIndex)
 		end
 	end
 
-	for scriptName, scriptSource in scriptsList do
-		if ScriptScroller:FindFirstChild(scriptName) then continue end
-		local newScript = Templates.ScriptTemplate:Clone()
-		local ScriptLabel = newScript.Label
+	delfile(fileNamePath)
+	scriptFilesList[scriptFileName] = nil
 
-		newScript.Name, ScriptLabel.Text = scriptName, scriptName
-		newScript.MouseButton1Click:Connect(function()
-			if textboxTabs[scriptName] then return end
-			createTab(scriptName, scriptSource)
-		end)
-
-		newScript.Parent = ScriptScroller
-	end
-
-	ScriptScroller.CanvasSize = UDim2.fromOffset(0, SSListLayout.AbsoluteContentSize.Y)
+	miscLib.WaitUntil(1, function() return not isfile(fileNamePath) end)
+	task.spawn(refreshScriptList)
 end
 
-local function searchScriptListFromName(scriptName)
-	scriptName = string.lower(scriptName)
+function onScriptFileClicked(scriptFileName: string)
+	local tabObj = findTabObj(scriptFileName)
 
-	for _, scriptBtn in ScriptScroller:GetChildren() do
-		if not scriptBtn:IsA("TextButton") then continue end
-		scriptBtn.Visible = (string.sub(string.lower(scriptBtn.Name), 0, string.len(scriptName)) == scriptName)
+	if scriptFileStates.IsRenaming then
+		local renameFileParams = table.clone(msgboxParams.RenameFile)
+		renameFileParams.Title = string.format(renameFileParams.Title, scriptFileName)
+		local msgBoxResult = newMessageBox("TextInput", renameFileParams)
+
+		if msgBoxResult.ClickedButton == 0 then
+			local fileDataContent = scriptFilesList[scriptFileName]
+			local sanitizedFileName = sanitizeScriptFileName(msgBoxResult.InputContent)
+
+			if not sanitizedFileName then
+				local currentParams = table.clone(msgboxParams.RenameFileFailed)
+				currentParams.TextContent = string.format(currentParams.TextContent, scriptFileName)
+				newMessageBox("TextInput", currentParams)
+				return
+			end
+			writefile(`{scriptListPath}/{sanitizedFileName}`, fileDataContent)
+			deleteScriptFile(scriptFileName, true)
+
+			if not tabObj then return end
+			tabObj:SetName(sanitizedFileName)
+		end
+	elseif scriptFileStates.IsDeleting then
+		local deleteFileParams = table.clone(msgboxParams.DeleteFile)
+		deleteFileParams.Title = string.format(deleteFileParams.Title, scriptFileName)
+		local msgBoxResult = newMessageBox("Default", deleteFileParams)
+
+		if msgBoxResult.ClickedButton == 0 then
+			deleteScriptFile(scriptFileName)
+		end
+	else
+		if tabObj then
+			selectTab(scriptFileName)
+			return
+		end
+
+		createTab(scriptFileName, scriptFilesList[scriptFileName])
 	end
-
-	ScriptScroller.CanvasSize = UDim2.fromOffset(0, SSListLayout.AbsoluteContentSize.Y)
 end
 
-local function onScriptScrollerCanvasResize()
-	local currentCanvasSize = SSListLayout.AbsoluteContentSize
-	for _, scriptBtn in ScriptScroller:GetChildren() do
-		if not scriptBtn:IsA("TextButton") then continue end
-		scriptBtn.Size = (
-			if currentCanvasSize.Y >= ScriptScroller.AbsoluteSize.Y then
-				UDim2.new(1, -6, 0, 25)
-			else
-				UDim2.new(1, 0, 0, 25)
-		)
+function refreshScriptList(dontReloadScriptsFolder: boolean)
+	if not dontReloadScriptsFolder then
+		for _, filePath in listfiles(scriptListPath) do
+			if isfolder(filePath) then continue end
+			local fileDataContent = readfile(filePath)
+			local fileName = string.split(filePath, "\\")
+			fileName = fileName[#fileName]
+
+			scriptFilesList[fileName] = fileDataContent
+		end
 	end
+
+	for scriptFileName, scriptDataContent in scriptFilesList do
+		if ScriptScroller:FindFirstChild(scriptFileName) then
+			continue
+		end
+
+		if typeof(scriptDataContent) == "nil" then
+			local scriptObj = ScriptScroller:FindFirstChild(scriptFileName)
+			if not scriptObj then continue end
+
+			scriptObj:Destroy()
+			continue
+		end
+
+		local newScriptObj = Templates.FileTemplate:Clone()
+		local scriptLabel = newScriptObj.Label
+		local scriptButton = newScriptObj.Button
+
+		newScriptObj.Name, scriptLabel.Text = scriptFileName, scriptFileName
+		miscLib.ButtonClickEvent(scriptButton, Enum.UserInputType.MouseButton1, miscLib.BindFunction(onScriptFileClicked, scriptFileName))
+
+		newScriptObj.Parent = ScriptScroller
+	end
+	ScriptScroller.CanvasSize = UDim2.fromOffset(0, ScriptListLayout.AbsoluteContentSize.Y)
+end
+
+local function searchScriptListFromName(scriptFileName)
+	scriptFileName = string.lower(scriptFileName)
+
+	for _, scriptObj in ScriptScroller:GetChildren() do
+		if not scriptObj:IsA("GuiObject") then continue end
+
+		scriptObj.Visible = (string.sub(string.lower(scriptObj.Name), 0, #scriptFileName) == scriptFileName)
+	end
+	ScriptScroller.CanvasSize = UDim2.fromOffset(0, ScriptListLayout.AbsoluteContentSize.Y)
 end
 
 local function createConsoleOutputLabel(outputColor, ...)
 	outputColor = outputColor or consoleColorTypes[Enum.MessageType.MessageOutput]
 	local message = table.concat({...}, " ")
 
-	totalConsoleOutputs += 1
 	local outputMsg = Templates.OutputTemplate:Clone()
-	outputMsg.Name = totalConsoleOutputs
+	outputMsg.Name = #OutputScroller:GetChildren()
 	outputMsg.Text = message
-	outputMsg.Parent = ConsoleScroller
+	outputMsg.Parent = OutputScroller
 	outputMsg.TextColor3 = consoleColorTypes[outputColor] or outputColor
 
-	local textSize = getTextSize(outputMsg)
+	local textSize = miscLib.GetTextSize(outputMsg)
 	outputMsg.Size = UDim2.fromOffset(textSize.X, textSize.Y)
 
-	ConsoleScroller.CanvasSize = UDim2.fromOffset(CSListLayout.AbsoluteContentSize.X + 5, CSListLayout.AbsoluteContentSize.Y + 5)
+	OutputScroller.CanvasSize = UDim2.fromOffset(OutputListLayout.AbsoluteContentSize.X + 5, OutputListLayout.AbsoluteContentSize.Y + 5)
 end
 
 local function onMessageLog(message, msgType, timestamp)
@@ -587,108 +661,242 @@ local function onMessageLog(message, msgType, timestamp)
 
 	task.spawn(createConsoleOutputLabel, msgType, message)
 end
+
 -- main
 -- (PRE-INIT)
-GUI.Name = generateRandomString(128)
-GUI.Parent = (gethui and gethui() or game:GetService("CoreGui").RobloxGui)
-draggify(MainUI, Topbar)
+local protectGui = (
+	if syn then
+		syn.protect_gui
+	elseif fluxus then
+		fluxus.protect_gui
+	else nil
+)
+if protectGui then protectGui(GUI) end
+
+GUI.Name = miscLib.GenerateRandomString(128)
+GUI.Parent = (if gethui then gethui() else game:GetService("CoreGui").RobloxGui)
+miscLib.Draggify(MainUI, Topbar)
 
 VersionLabel.Text = scriptVersion
 -- (Topbar)
-CloseBtn.MouseButton1Click:Connect(function()
-	toggleUI(false).Completed:Wait()
-	GUI:Destroy()
+addHoverDesc(CloseBtn, "Closes executor.")
+miscLib.ButtonClickEvent(CloseBtn, Enum.UserInputType.MouseButton1, function()
+	local msgBoxResult = newMessageBox("Default", msgboxParams.CloseUI)
+
+	if msgBoxResult.ClickedButton == 0 then
+		toggleUI(false).Completed:Wait()
+		GUI:Destroy()
+	end
 end)
 
-HideBtn.MouseButton1Click:Connect(function()
-	toggleUI(false)
+addHoverDesc(HideBtn, "Hides executor. (Alternatively, press F1.)")
+miscLib.ButtonClickEvent(HideBtn, Enum.UserInputType.MouseButton1, function()
+	executorStates.UIToggled = false
+	toggleUI(executorStates.UIToggled)
 end)
 
-SidebarToggleBtn.MouseButton1Click:Connect(function()
-	if not sidebarBtnDebounce then return end
-	local sidebarTween, fadeTween = setSidebarVisible(not sidebarOpen)
-	local sidebarBtnTween = setSdBtnRot(if sidebarOpen then 0 else 90)
+addHoverDesc(SidebarToggleBtn, "Toggles sidebar.")
+miscLib.ButtonClickEvent(SidebarToggleBtn, Enum.UserInputType.MouseButton1, function()
+	if not sidebarStates.SidebarBtnDebounce then return end
+	local sidebarTween, fadeTween = setSidebarVisible(not sidebarStates.SidebarOpened)
+	local sidebarBtnTween = setSdBtnRot(if sidebarStates.SidebarOpened then 0 else 90)
 
-	sidebarBtnDebounce = false
+	sidebarStates.SidebarBtnDebounce = false
+	sidebarStates.SidebarOpened = not sidebarStates.SidebarOpened
+	setContainerUIActive(sidebarStates.CurrentOpenUI, not sidebarStates.SidebarOpened)
 	sidebarTween:Play()
 	sidebarBtnTween:Play()
 	fadeTween:Play()
 
 	sidebarTween.Completed:Connect(function()
-		sidebarOpen = not sidebarOpen
 		sidebarTween:Destroy()
 		sidebarBtnTween:Destroy()
 		fadeTween:Destroy()
 
 		task.wait(.025)
-		sidebarBtnDebounce = true
+		sidebarStates.SidebarBtnDebounce = true
 	end)
 end)
 
 -- (Sidebar - Container)
-for _, objBtn in SdButtons:GetChildren() do
-	objBtn.MouseButton1Click:Connect(function()
-		setContainerUI(objBtn.Name)
-	end)
+for _, buttonObj in SdButtons:GetChildren() do
+	miscLib.ButtonClickEvent(buttonObj, Enum.UserInputType.MouseButton1, miscLib.BindFunction(setContainerUI, buttonObj.Name))
 end
 
 -- (Executor - Container)
 -- (Buttons)
-ExecuteBtn.MouseButton1Click:Connect(function()
+addHoverDesc(ExecuteBtn, "Runs the script.")
+miscLib.ButtonClickEvent(ExecuteBtn, Enum.UserInputType.MouseButton1, function()
 	if (config.customExecution and config.executeFunc) then
 		local executeFunc = config.executeFunc
-		task.spawn(executeFunc, TextboxInput.Text, string.format("@Executor - %s", currentTab))
+		task.spawn(executeFunc, TextboxInput.Text, string.format("@Executor - %s", tabsState.CurrentTab))
 	else
-		loadstring(TextboxInput.Text, string.format("@Executor - %s", currentTab))()
+		loadstring(TextboxInput.Text, string.format("@Executor - %s", tabsState.CurrentTab))()
 	end
 end)
 
-ClearBtn.MouseButton1Click:Connect(function()
-	TextboxInput.Text = ""
+addHoverDesc(ClearBtn, "Clears the selected tab.")
+miscLib.ButtonClickEvent(ClearBtn, Enum.UserInputType.MouseButton1, function()
+	local msgBoxResult = newMessageBox("Default", msgboxParams.ClearCurrentTab)
+
+	if msgBoxResult.ClickedButton == 0 then
+		TextboxInput.Text = ""
+	end
 end)
 
-HideTextBtn.MouseButton1Click:Connect(function()
-	textIDENotHidden = not textIDENotHidden
-	TextboxInput.Visible = textIDENotHidden
+addHoverDesc(HideTextBtn, "Toggles text editor visibility.")
+miscLib.ButtonClickEvent(HideTextBtn, Enum.UserInputType.MouseButton1, function()
+	textboxEditorInfo.EditorHidden = textboxEditorInfo.EditorHidden
+	TextboxInput.Visible = not textboxEditorInfo.EditorHidden
+	HideTextBtn.ImageColor3 = (
+		if textboxEditorInfo.EditorHidden then
+			Color3.fromRGB(170, 170, 170)
+		else Color3.fromRGB(213, 213, 213)
+	)
 end)
 
-RFScriptsBtn.MouseButton1Click:Connect(refreshScriptList)
+addHoverDesc(SaveFileBtn, "Saves current tab.")
+miscLib.ButtonClickEvent(SaveFileBtn, Enum.UserInputType.MouseButton1, function()
+	if scriptFilesList[tabsState.CurrentTab] then
+		local saveFileParams = table.clone(msgboxParams.SaveExistingFile)
+		saveFileParams.Title = string.format(saveFileParams.Title, tabsState.CurrentTab)
+		local msgBoxResult = newMessageBox("Default", saveFileParams)
 
--- (TextboxIDE init)
-TextboxInput:GetPropertyChangedSignal("Text"):Connect(updateIDE)
+		if msgBoxResult.ClickedButton == 0 then
+			writefile(`{scriptListPath}/{tabsState.CurrentTab}`, TextboxInput.Text)
+		end
+	else
+		local saveFileParams = table.clone(msgboxParams.SaveNewFile)
+		saveFileParams.Title = string.format(saveFileParams.Title, tabsState.CurrentTab)
+		local msgBoxResult = newMessageBox("TextInput", saveFileParams)
+
+		if msgBoxResult.ClickedButton == 0 then
+			local sanitizedFileName = sanitizeScriptFileName(msgBoxResult.InputContent)
+
+			if not sanitizedFileName then
+				local currentParams = table.clone(msgboxParams.SaveNewFileFailed)
+				currentParams.TextContent = string.format(currentParams.TextContent, msgBoxResult.InputContent)
+				newMessageBox("TextInput", currentParams)
+				return
+			end
+			writefile(`{scriptListPath}/{sanitizedFileName}`, TextboxInput.Text)
+		end
+	end
+	task.defer(refreshScriptList)
+end)
+
+-- (Textbox Editor init)
+highlighterLib:Init()
+TextboxInput:GetPropertyChangedSignal("Text"):Connect(updateEditor)
 TextboxInput:GetPropertyChangedSignal("CursorPosition"):Connect(updateLineHighlight)
-TextboxInput.InputChanged:Connect(onMouseScroll)
+TextboxInput.InputChanged:Connect(onTextboxInputChanged)
 TextboxScroller:GetPropertyChangedSignal("CanvasPosition"):Connect(updateScroll)
-setTokenColors(tokenColors)
-task.defer(updateIDE)
+task.defer(updateEditor)
 
 -- (Tabs)
-AddTabBtn.MouseButton1Click:Connect(function()
-	tabCreateCount += 1
-	createTab("Tab " .. tabCreateCount)
+addHoverDesc(AddTabBtn, "Creates new tab.")
+miscLib.ButtonClickEvent(AddTabBtn, Enum.UserInputType.MouseButton1, function()
+	tabsState.CreatedTabCount += 1
+	createTab("Tab " .. tabsState.CreatedTabCount)
 end)
 
 TextboxInput:GetPropertyChangedSignal("Text"):Connect(updateTabData)
 TSListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateTabCanvasSize)
 
--- (Search)
-SSearchInput.FocusLost:Connect(function()
-	searchScriptListFromName(SSearchInput.Text)
+-- (Script List - Buttons)
+addHoverDesc(CreateFileBtn, "Creates a new file.")
+miscLib.ButtonClickEvent(CreateFileBtn, Enum.UserInputType.MouseButton1, function()
+	local msgBoxResult = newMessageBox("TextInput", msgboxParams.CreateNewFile)
+
+	if msgBoxResult.ClickedButton == 0 then
+		local sanitizedFileName = sanitizeScriptFileName(msgBoxResult.InputContent)
+
+		if not sanitizedFileName then
+			local currentParams = table.clone(msgboxParams.CreateNewFileFailed)
+			currentParams.TextContent = string.format(currentParams.TextContent, msgBoxResult.InputContent)
+			newMessageBox("TextInput", currentParams)
+			return
+		end
+		writefile(`{scriptListPath}/{sanitizedFileName}`, "")
+	end
+	task.defer(refreshScriptList)
 end)
 
-ScriptScroller:GetPropertyChangedSignal("CanvasSize"):Connect(onScriptScrollerCanvasResize)
+addHoverDesc(RenameFileBtn, "Renames selected file.")
+miscLib.ButtonClickEvent(RenameFileBtn, Enum.UserInputType.MouseButton1, function()
+	if scriptFileStates.IsDeleting then return end
+	scriptFileStates.IsRenaming = not scriptFileStates.IsRenaming
+	RenameFileBtn.ImageColor3 = (
+		if scriptFileStates.IsRenaming then
+			Color3.fromRGB(40, 130, 245)
+		else Color3.fromRGB(213, 213, 213)
+	)
+end)
+
+addHoverDesc(DeleteFileBtn, "Deletes selected file.")
+miscLib.ButtonClickEvent(DeleteFileBtn, Enum.UserInputType.MouseButton1, function()
+	if scriptFileStates.IsRenaming then return end
+	scriptFileStates.IsDeleting = not scriptFileStates.IsDeleting
+	DeleteFileBtn.ImageColor3 = (
+		if scriptFileStates.IsDeleting then
+			Color3.fromRGB(210, 55, 55)
+		else Color3.fromRGB(213, 213, 213)
+	)
+end)
+
+addHoverDesc(SearchBtn, "Toggles search box.")
+miscLib.ButtonClickEvent(SearchBtn, Enum.UserInputType.MouseButton1, function()
+	scriptFileStates.SearchInputOpen = not scriptFileStates.SearchInputOpen
+
+	for _, button in SLTopbarBtns:GetChildren() do
+		if button == SearchBtn then continue end
+		button.Visible = not scriptFileStates.SearchInputOpen
+	end
+	SLSearch.Visible = scriptFileStates.SearchInputOpen
+end)
+
+-- (Script List - Search)
+SLSearchInput.FocusLost:Connect(function()
+	if not scriptFileStates.SearchInputOpen then return end
+	searchScriptListFromName(SLSearchInput.Text)
+end)
+
+ScriptScroller:GetPropertyChangedSignal("CanvasSize"):Connect(function()
+	local currentCanvasSize = ScriptListLayout.AbsoluteContentSize
+	for _, scriptObj in ScriptScroller:GetChildren() do
+		if not scriptObj:IsA("GuiObject") then continue end
+
+		scriptObj.Size = (
+			if currentCanvasSize.Y > ScriptScroller.AbsoluteSize.Y then
+				UDim2.new(1, -5, 0, 25)
+			else UDim2.new(1, 0, 0, 25)
+		)
+	end
+end)
 
 -- (Console - Container)
 logService.MessageOut:Connect(onMessageLog)
 logService.ServerMessageOut:Connect(onMessageLog)
 
-ClearConsoleBtn.MouseButton1Click:Connect(function()
-	for _, outputMsg in ConsoleScroller:GetChildren() do
-		if not outputMsg:IsA("TextLabel") then continue end
-		outputMsg:Destroy()
-	end
+ConsoleBtns.MouseMoved:Connect(function()
+	if not activeContainers.Console then return end
+	ConsoleBtnsHolder.GroupTransparency = 0
+end)
 
-	totalConsoleOutputs = 0
+ConsoleBtns.MouseLeave:Connect(function()
+	ConsoleBtnsHolder.GroupTransparency = .75
+end)
+
+addHoverDesc(ClearConsoleBtn, "Clears console output.")
+miscLib.ButtonClickEvent(ClearConsoleBtn, Enum.UserInputType.MouseButton1, function()
+	local msgBoxResult = newMessageBox("Default", msgboxParams.ClearOutput)
+
+	if msgBoxResult.ClickedButton == 0 then
+		for _, outputMsg in OutputScroller:GetChildren() do
+			if not outputMsg:IsA("TextLabel") then continue end
+			outputMsg:Destroy()
+		end
+	end
 end)
 
 -- (POST-INIT)
@@ -696,30 +904,23 @@ Topbar.Visible, Container.Visible = false, false
 MainUI.Size, MainUI.BorderSizePixel = UDim2.new(), 0
 
 inputService.InputBegan:Connect(function(input)
-	if input.KeyCode == Enum.KeyCode.RightControl and not inputService:GetFocusedTextBox() then
-		if (not uiToggleDebounce or not executorLoaded) then return end
+	if input.KeyCode == Enum.KeyCode.F1 and not inputService:GetFocusedTextBox() then
+		if (not executorStates.UIToggleDebounce or not executorStates.Loaded) then return end
 
 		local toggleTween = toggleUI(not MainUI.Visible)
-		uiToggleDebounce = false
+		executorStates.UIToggleDebounce = false
+		executorStates.UIToggled = not executorStates.UIToggled
 
 		toggleTween.Completed:Connect(function()
-			sidebarOpen = false
+			sidebarStates.SidebarOpened = false
 			Sidebar.Position = UDim2.fromOffset(-150, 0)
 			SdFadeEffect.Visible, SdFadeEffect.Size = false, UDim2.fromOffset(0, 320)
 			SidebarToggleBtn.Rotation = 0
 
 			task.wait(.25)
-			uiToggleDebounce = true
+			executorStates.UIToggleDebounce = true
 			toggleTween:Destroy()
 		end)
-	end
-end)
-
-game.Close:Connect(function()
-	-- TODO: make a file saving system
-	-- well it does save but what's the point of this if u can't modify the file inside the executor
-	for fileName, fileData in scriptsList do
-		writefile(scriptListPath .. "/" .. fileName, fileData)
 	end
 end)
 
@@ -728,12 +929,13 @@ task.defer(function()
 		if not isfolder(scriptListPath) then
 			makefolder(scriptListPath)
 		end
+
+		task.defer(refreshScriptList)
 	end
 
-	createTab(defaultTab, config.customMainTabText, true)
-	refreshScriptList()
-	toggleUI(true).Completed:Wait()
-	executorLoaded = true
+	createTab(tabsState.DefaultTab, config.mainTabText, true)
+	toggleUI(executorStates.UIToggled).Completed:Wait()
+	executorStates.Loaded = true
 end)
 
 local execGuiAPI = {}
@@ -741,7 +943,7 @@ execGuiAPI._VERSION = scriptVersion
 
 execGuiAPI.executor = {}
 execGuiAPI.executor.newTab = createTab
-execGuiAPI.executor.setIDETokenColors = setTokenColors
+execGuiAPI.executor.setTokenColors = highlighterLib.SetTokenColors
 
 execGuiAPI.console = {}
 execGuiAPI.console.createOutput = onMessageLog

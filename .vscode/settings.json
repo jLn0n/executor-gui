@@ -8,6 +8,15 @@
         "writefile",
         "makefolder",
         "isfolder",
-        "listfiles"
+        "listfiles",
+        "syn",
+        "http",
+        "request",
+        "http_request",
+        "DEV_MODE",
+        "USING_JALON_LOADER",
+        "delfile",
+        "_JALON_EXECUTOR_INTERNAL",
+        "fluxus"
     ]
 }
