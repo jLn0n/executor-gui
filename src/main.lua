@@ -445,7 +445,7 @@ local function selectTab(tabName: string)
 	end
 	selectedTabObj:Select(true)
 
-	task.spawn(updateEditor)
+	task.defer(updateEditor)
 	task.defer(updateLineHighlight, 1)
 end
 
