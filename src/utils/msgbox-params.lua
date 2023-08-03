@@ -11,17 +11,17 @@ return {
 	-- (Buttons)
 	["ClearCurrentTab"] = {
 		Title = "Clear current tab",
-		TextContent = "Do you really want to clear out the text editor? Any changes will not be saved if you do so.",
+		TextContent = "Are you sure you want to clear out the text editor? Any changes will not be saved if you do so.",
 		ButtonCount = 2,
 	},
 	["SaveExistingFile"] = {
 		Title = "Save '%s'",
-		TextContent = "Are you sure about saving this tab?",
-		Button0Text = "Save",
+		TextContent = "Are you sure you want to save this tab?",
+		ButtonCount = 2,
 	},
 	["SaveNewFile"] = {
 		Title = "Save '%s'",
-		TextContent = "File name:",
+		TextContent = "Save name:",
 		Button0Text = "Save",
 	},
 	["SaveNewFileFailed"] = {

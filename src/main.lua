@@ -757,7 +757,9 @@ end)
 
 addHoverDesc(SaveFileBtn, "Saves current tab.")
 miscLib.ButtonClickEvent(SaveFileBtn, Enum.UserInputType.MouseButton1, function()
-	if scriptFilesList[tabsState.CurrentTab] then
+	local tabObj = scriptFilesList[tabsState.CurrentTab]
+
+	if tabObj then
 		local saveFileParams = table.clone(msgboxParams.SaveExistingFile)
 		saveFileParams.Title = string.format(saveFileParams.Title, tabsState.CurrentTab)
 		local msgBoxResult = newMessageBox("Default", saveFileParams)
@@ -772,13 +774,15 @@ miscLib.ButtonClickEvent(SaveFileBtn, Enum.UserInputType.MouseButton1, function(
 
 		if msgBoxResult.ClickedButton == 0 then
 			local sanitizedFileName = sanitizeScriptFileName(msgBoxResult.InputContent)
-
 			if not sanitizedFileName then
 				local currentParams = table.clone(msgboxParams.SaveNewFileFailed)
 				currentParams.TextContent = string.format(currentParams.TextContent, msgBoxResult.InputContent)
 				newMessageBox("TextInput", currentParams)
 				return
 			end
+			tabObj = findTabObj(tabsState.CurrentTab)
+
+			tabObj:SetName(sanitizedFileName)
 			writefile(`{scriptListPath}/{sanitizedFileName}`, TextboxInput.Text)
 		end
 	end
