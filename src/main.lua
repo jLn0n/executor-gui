@@ -509,11 +509,11 @@ local function sanitizeScriptFileName(fileName: string): string
 		return (if string.byte(value) > 126 then "" else value)
 	end)
 
-	local fileExtension = string.split(fileName, ".")
-	local fileIndexes = #fileExtension
-	fileExtension = fileExtension[fileIndexes]
+	local fileSplits = string.split(fileName, ".")
+	local fileIndexes = #fileSplits
+	local fileExtension = fileSplits[fileIndexes]
 
-	if fileIndexes < 3 and #fileExtension[1] < 1 then
+	if fileIndexes < 3 and #fileSplits[1] < 1 then
 		return
 	end
 
