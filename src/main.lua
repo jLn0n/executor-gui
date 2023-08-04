@@ -1,6 +1,6 @@
 -- init
 if not USING_JALON_LOADER then return error("[executor-gui]: not using loader.lua!") end
-local scriptVersion = "v0.1.0"
+local scriptVersion = "v0.1.1"
 local config do
 	local loadedConfig = select(1, ...) or table.create(0)
 
