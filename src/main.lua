@@ -646,13 +646,21 @@ local function createConsoleOutputLabel(outputColor, ...)
 	local outputMsg = Templates.OutputTemplate:Clone()
 	outputMsg.Name = #OutputScroller:GetChildren()
 	outputMsg.Text = message
-	outputMsg.Parent = OutputScroller
 	outputMsg.TextColor3 = consoleColorTypes[outputColor] or outputColor
 
 	local textSize = miscLib.GetTextSize(outputMsg)
 	outputMsg.Size = UDim2.fromOffset(textSize.X, textSize.Y)
 
+	outputMsg.Parent = OutputScroller
+end
+
+local function updateOutputCanvasSize()
 	OutputScroller.CanvasSize = UDim2.fromOffset(OutputListLayout.AbsoluteContentSize.X + 5, OutputListLayout.AbsoluteContentSize.Y + 5)
+	ConsoleBtnsHolder.Position = (
+		if OutputListLayout.AbsoluteContentSize.Y > OutputScroller.AbsoluteSize.X then
+			UDim2.new(1, -10, 0, 0)
+		else UDim2.new(1, 0, 0, 0)
+	)
 end
 
 local function onMessageLog(message, msgType, timestamp)
@@ -879,6 +887,7 @@ ScriptScroller:GetPropertyChangedSignal("CanvasSize"):Connect(function()
 end)
 
 -- (Console - Container)
+OutputListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateOutputCanvasSize)
 logService.MessageOut:Connect(onMessageLog)
 logService.ServerMessageOut:Connect(onMessageLog)
 
