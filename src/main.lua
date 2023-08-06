@@ -887,10 +887,6 @@ ScriptScroller:GetPropertyChangedSignal("CanvasSize"):Connect(function()
 end)
 
 -- (Console - Container)
-OutputListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateOutputCanvasSize)
-logService.MessageOut:Connect(onMessageLog)
-logService.ServerMessageOut:Connect(onMessageLog)
-
 ConsoleBtns.MouseMoved:Connect(function()
 	if not activeContainers.Console then return end
 	ConsoleBtnsHolder.GroupTransparency = 0
@@ -911,6 +907,10 @@ miscLib.ButtonClickEvent(ClearConsoleBtn, Enum.UserInputType.MouseButton1, funct
 		end
 	end
 end)
+
+OutputListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(updateOutputCanvasSize)
+logService.MessageOut:Connect(onMessageLog)
+logService.ServerMessageOut:Connect(onMessageLog)
 
 -- (POST-INIT)
 Topbar.Visible, Container.Visible = false, false
