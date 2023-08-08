@@ -394,7 +394,6 @@ local function updateEditor()
 		task.cancel(textboxEditorInfo.CurrentSyntaxRenderThread)
 	end
 	textboxEditorInfo.CurrentSyntaxRenderThread = task.defer(highlighterLib.Render, TextboxInput)
-	task.defer(updateLineHighlight)
 
 	local linesRender = getLinesRender(TextboxInput.Text)
 	TLRender.Text = linesRender
@@ -951,14 +950,20 @@ task.defer(function()
 	executorStates.Loaded = true
 end)
 
-local execGuiAPI = {}
-execGuiAPI._VERSION = scriptVersion
+local executorAPI = {}
+executorAPI._VERSION = scriptVersion
 
-execGuiAPI.executor = {}
-execGuiAPI.executor.newTab = createTab
-execGuiAPI.executor.setTokenColors = highlighterLib.SetTokenColors
+-- executor category
+executorAPI.executor = {}
+executorAPI.executor.newTab = createTab
+executorAPI.executor.setTokenColors = highlighterLib.SetTokenColors
 
-execGuiAPI.console = {}
-execGuiAPI.console.createOutput = onMessageLog
+-- console category
+executorAPI.console = {}
+executorAPI.console.createOutput = onMessageLog
 
-return execGuiAPI
+-- misc
+executorAPI.misc = {}
+executorAPI.misc.newMessageBox = newMessageBox
+
+return executorAPI
